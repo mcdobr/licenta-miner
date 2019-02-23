@@ -1,0 +1,13 @@
+<prod-grid-box class="product-grid-container" itemscope="" itemtype="http://schema.org/Book"><a class="clean-a" data-ng-href="/carte/trecute-vieti-de-doamne-si-domnite-82699986?p=1" title="Trecute vieti de doamne si domnite" data-ng-click="onProductClick($event, product,key +1)" href="/carte/trecute-vieti-de-doamne-si-domnite-82699986?p=1">
+<!-- ngIf: ::product.imgUrl --><div data-ng-if="::product.imgUrl" class="productImageContainer ng-scope" style="">
+<img data-ng-src="//cdn.cartu.ro/img/prod/240/82699986-0-240.jpeg" itemprop="image" src="//cdn.cartu.ro/img/prod/240/82699986-0-240.jpeg">
+</div><!-- end ngIf: ::product.imgUrl --></a>
+<div class="grid-product-details layout-align-center-center layout-column" layout="column" layout-align="center center">
+<a data-ng-href="/carte/trecute-vieti-de-doamne-si-domnite-82699986?p=1" itemprop="url" content="/carte/trecute-vieti-de-doamne-si-domnite-82699986?p=1" data-ng-click="onProductClick($event, product, key +1)" href="/carte/trecute-vieti-de-doamne-si-domnite-82699986?p=1">
+<h5 class="md-title ng-binding" data-ng-bind="::product.name" itemprop="name">Trecute vieti de doamne si domnite</h5>
+</a>
+<div class="subtitlu-produs ng-binding" data-ng-bind-html="::h.htmlDecode(h.parseSubtitle(product.subtitle))"><a href="/autor/constantin_gane">Constantin Gane</a></div>
+</div>" <!-- ngIf: ::product.nou --> <!-- ngIf: ::product.discount -->
+<!-- ngIf: ::product.specialPrice -->
+<div class="productStock in-stoc" data-ng-class="::product.stockStatus.slug" style=""><span data-ng-bind="::product.stockStatus.label" class="ng-binding">În stoc</span><!-- ngIf: ::product.stockStatus['24h'] --><span class="stoc24h ng-scope" data-ng-if="::product.stockStatus['24h']" style=""></span><!-- end ngIf: ::product.stockStatus['24h'] --></div>
+<!-- ngIf: ::product.stockStatus.slug != 'indisponibil' && product.stockStatus.slug != 'promo' --><div data-ng-if="::product.stockStatus.slug != 'indisponibil' &amp;&amp; product.stockStatus.slug != 'promo'" data-ng-bind-html="::h.formatPrice(product.price)" class="productPrice ng-binding ng-scope" data-ng-class="::product.discount?'discountPrice':''" style=""><span class="suma" itemprop="price" content="69.00">69</span><span class="bani">00</span><span class="priceCurrency" content="RON">lei</span></div><!-- end ngIf: ::product.stockStatus.slug != 'indisponibil' && product.stockStatus.slug != 'promo' --></prod-grid-box>
