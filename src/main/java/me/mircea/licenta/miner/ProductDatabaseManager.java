@@ -31,4 +31,6 @@ class ProductDatabaseManager {
 	
 	private ProductDatabaseManager() {
 	}
+	
+	public static final ProductDatabaseManager instance = new ProductDatabaseManager();
 }

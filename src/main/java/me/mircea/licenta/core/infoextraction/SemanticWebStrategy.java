@@ -51,9 +51,15 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 		
 		return book;
 	}
+	
 
 	@Override
-	public PricePoint extractPricePoint(Element htmlElement, Locale locale, Instant retrievedDay) {
+	public Book extractBook(Document bookPage) {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
 		// TODO Auto-generated method stub
 		return null;
 	}

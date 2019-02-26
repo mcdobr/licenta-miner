@@ -54,10 +54,17 @@ public class HeuristicalStrategyTest {
 		librisMainContent = HtmlUtil.extractMainContent(Jsoup.parse(librisBookPageFile, "UTF-8", librisUrl));
 	}
 	
+
+	@Test
+	public void shouldExtractTitles() {
+		assertEquals("Inima omului", extractionStrategy.extractTitle(carturestiContent));
+		assertEquals("Medicina, nutritie si buna dispozitie - Simona Tivadar", extractionStrategy.extractTitle(librisContent));
+		assertEquals("Pentru o genealogie a globalizării", extractionStrategy.extractTitle(alexandriaContent));
+		
+	}
 	
 	@Test
-	public void shouldExtractAuthors()
-	{
+	public void shouldExtractAuthors() {
 		assertEquals("Claude Karnoouh", extractionStrategy.extractAuthors(alexandriaMainContent));
 		assertEquals("Jon Kalman Stefansson", extractionStrategy.extractAuthors(carturestiMainContent));
 		assertEquals("Simona Tivadar", extractionStrategy.extractAuthors(librisMainContent));

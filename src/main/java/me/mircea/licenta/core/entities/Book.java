@@ -123,7 +123,7 @@ public class Book {
 	}
 
 	public void setIsbn(String isbn) {
-		this.isbn = isbn.replaceAll("[-\\ ]", "");
+		this.isbn = (isbn != null) ? isbn.replaceAll("[-\\ ]", "") : null;
 	}
 
 	public String getDescription() {

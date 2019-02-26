@@ -1,9 +1,8 @@
 package me.mircea.licenta.miner;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
-import java.time.Instant;
+import java.util.AbstractMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -11,23 +10,26 @@ import java.util.concurrent.TimeUnit;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Preconditions;
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.ObjectifyService;
+import com.googlecode.objectify.Work;
 import com.googlecode.objectify.cmd.LoadType;
 
-import crawlercommons.robots.BaseRobotRules;
 import me.mircea.licenta.core.entities.PricePoint;
+import me.mircea.licenta.core.crawl.CrawlDatabaseManager;
+import me.mircea.licenta.core.crawl.CrawlRequest;
+import me.mircea.licenta.core.crawl.db.model.Page;
 import me.mircea.licenta.core.entities.Book;
 import me.mircea.licenta.core.entities.WebWrapper;
 import me.mircea.licenta.core.infoextraction.HeuristicalStrategy;
 import me.mircea.licenta.core.infoextraction.InformationExtractionStrategy;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
+
+import static com.googlecode.objectify.ObjectifyService.*;
+
 
 /**
  * @author mircea
@@ -39,90 +41,58 @@ import me.mircea.licenta.core.parser.utils.HtmlUtil;
 public class Miner implements Runnable {
 	private static final Logger logger = LoggerFactory.getLogger(Miner.class);
 	
-	private final Document multiBookPage;
-	private final List<String> singleBookUrls;
-	private final Instant retrievedTime;
-	private final String site;
-	private final BaseRobotRules crawlRules;
+	private CrawlRequest crawlRequest;
 	private WebWrapper wrapper;
 	
-	public Miner(Document multiBookPage, Instant retrievedTime, List<String> singleBookUrls, BaseRobotRules crawlRules) throws MalformedURLException {
-		this.multiBookPage = multiBookPage;
-		this.retrievedTime = retrievedTime;
-		this.singleBookUrls = singleBookUrls;
-		this.site = HtmlUtil.getDomainOfUrl(multiBookPage.baseUri());
-		this.crawlRules = crawlRules;
-		// this.wrapper = ObjectifyService.run(() -> getWrapperForSite(site));
+	public Miner(CrawlRequest crawlRequest) {
+		this.crawlRequest = crawlRequest;
+		//this.wrapper = ObjectifyService.run(() -> getWrapperForSite(site));
 	}
+	
 
 	@Override
 	public void run() {
-		HtmlUtil.sanitizeHtml(multiBookPage);
-		ObjectifyService.run(() -> {
-				InformationExtractionStrategy extractionStrategy = chooseStrategy();
-				persistBooks(extractionStrategy);
-				return null;
+		InformationExtractionStrategy strategy = chooseStrategy();
+		
+		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(crawlRequest.getDomain());
+		
+		for (Page page: pages) {
+			Optional<Document> optionalDoc = tryToGetPage(page.getUrl());
+			if (optionalDoc.isPresent()) {
+				Document doc = optionalDoc.get();
+				
+				AbstractMap.SimpleEntry<Book, PricePoint> bop = extractBookOffer(doc, strategy);
+				ObjectifyService.run(new Work<Void>() {
+					@Override
+					public Void run() {
+						persistBookOfferPair(bop);
+						return null;
+					}
+				});
 			}
-		);
-	}
-	
-	private void persistBooks(InformationExtractionStrategy strategy) {
-		int inserted = 0;
-		int updated = 0;
-
-		final Elements bookCards = getBookCards();
-		for (String bookUrl : singleBookUrls) {
-			final Optional<Document> optSingleBookPage = tryToGetPage(bookUrl);
 			
-			Document bookPage;
-			if (optSingleBookPage.isPresent())
-				bookPage = optSingleBookPage.get();
-			else
-				continue;
-			
-			Element bookCard = bookCards.select(String.format(":has(a[href='%s'])", bookUrl)).first();
-			
-			final Book book = strategy.extractBook(bookCard, bookPage);
-			final PricePoint pricePoint = strategy.extractPricePoint(bookCard, Locale.forLanguageTag("ro-ro"), retrievedTime);
-
-			List<Book> books = findBookByProperties(book);
-			Key<PricePoint> priceKey = ObjectifyService.ofy().save().entity(pricePoint).now();
-			
-			book.getPricepoints().add(priceKey);	
-			if (books.isEmpty()) {
-				++inserted;
-				ObjectifyService.ofy().save().entity(book);
-				logger.info("Saving new {} to db.", book);
-			} else {
-				++updated;
-
-				Book persistedBook = books.get(0);
-				Optional<Book> mergedBook = Book.merge(persistedBook, book);
-
-				if (mergedBook.isPresent()) {
-					Book bookToPersist = mergedBook.get();
-					ObjectifyService.ofy().delete().entities(persistedBook);
-					ObjectifyService.ofy().save().entities(bookToPersist);
-					logger.info("Updating book to {} in db.", mergedBook.get());
-				}
+			try {
+				TimeUnit.MILLISECONDS.sleep(crawlRequest.getRobotRules().getCrawlDelay());
+			} catch (InterruptedException e) {
+				logger.warn("Interrupted thread: {}", e);
+				Thread.currentThread().interrupt();
 			}
 		}
-		logger.info("Found {}/{} books on {} : {} inserted, {} updated.", bookCards.size(), singleBookUrls.size(),
-				multiBookPage.absUrl("href"), inserted, updated);
 	}
+	
 
-	public Elements getBookCards() {
-		String bookSelector = "[class*='produ']:has(img):has(a)";
-		return multiBookPage.select(String.format("%s:not(:has(%s))", bookSelector, bookSelector));
+	private InformationExtractionStrategy chooseStrategy() {
+		//WebWrapper wrapper = getWrapperForSite(this.site);
+		return new HeuristicalStrategy();
 	}
-
+	
 	private Optional<Document> tryToGetPage(String url) {
 		final int MAX_TRIES = 2;
 		Document bookPage = null;
 		for (int i = 0; i < MAX_TRIES; ++i) {
 			try {
 				bookPage = HtmlUtil.sanitizeHtml(Jsoup.connect(url).get());
-				TimeUnit.MILLISECONDS.sleep(this.crawlRules.getCrawlDelay());
+				TimeUnit.MILLISECONDS.sleep(this.crawlRequest.getRobotRules().getCrawlDelay());
 				break;
 			} catch (SocketTimeoutException e) {
 				logger.warn("Socket timed out on {}", url);
@@ -136,29 +106,43 @@ public class Miner implements Runnable {
 		return Optional.ofNullable(bookPage);
 	}
 	
-	/**
-	 * @return Appropriate strategy for current context
-	 */
-	private InformationExtractionStrategy chooseStrategy() {
-		WebWrapper wrapper = getWrapperForSite(this.site);
-		return new HeuristicalStrategy();
-	}
-
-	/*
-	private Key<WebWrapper> persistNewWrapper(WrapperGenerationStrategy wrapperGenerator) {
-		Element anySingleBookPage = singleBookUrls.values().iterator().next();
-		WebWrapper wrapper = wrapperGenerator.generateWrapper(anySingleBookPage, new Elements(multiBookPage));
+	private AbstractMap.SimpleEntry<Book, PricePoint> extractBookOffer(Document page, InformationExtractionStrategy strategy) {
+		Book book = strategy.extractBook(page);
+		PricePoint offer = strategy.extractPricePoint(page, Locale.forLanguageTag("ro-ro"));
 		
-		logger.info("Adding wrapper {}", wrapper);
-		return ObjectifyService.ofy().save().entity(wrapper).now();
-	}*/
+		return new AbstractMap.SimpleEntry<>(book, offer);
+	}
+	
+	private void persistBookOfferPair(AbstractMap.SimpleEntry<Book, PricePoint> bookOfferPair) {
+		persistBookOfferPair(bookOfferPair.getKey(), bookOfferPair.getValue());
+	}
+	
+	private void persistBookOfferPair(Book book, PricePoint offer) {
+		List<Book> books = findBook(book);
+		Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
+		
+		book.getPricepoints().add(offerKey);	
+		if (books.isEmpty()) {
+			ofy().save().entity(book);
+			logger.info("Saving new {} to db.", book);
+		} else {
+			Book persistedBook = books.get(0);
+			Optional<Book> mergedBook = Book.merge(persistedBook, book);
 
+			if (mergedBook.isPresent()) {
+				Book bookToPersist = mergedBook.get();
+				ofy().delete().entities(persistedBook);
+				ofy().save().entities(bookToPersist);
+				logger.info("Updating book to {} in db.", mergedBook.get());
+			}
+		}
+	}
+	
 	/**
-	 * @param candidate
 	 * @return A list of books containing either one with the same isbn, or other
 	 *         books that have the same name.
 	 */
-	private List<Book> findBookByProperties(Book candidate) {
+	private List<Book> findBook(Book candidate) {
 		final int MAX_BOOKS_RETURNED = 10;
 		
 		LoadType<Book> bookLoader = ObjectifyService.ofy().load().type(Book.class);
@@ -168,9 +152,26 @@ public class Miner implements Runnable {
 			return bookLoader.filter("title", candidate.getTitle()).limit(MAX_BOOKS_RETURNED).list();
 	}
 
+	/*
+	public Elements getBookCards() {
+		String bookSelector = "[class*='produ']:has(img):has(a)";
+		return multiBookPage.select(String.format("%s:not(:has(%s))", bookSelector, bookSelector));
+	}
+	
+	/*
+	private Key<WebWrapper> persistNewWrapper(WrapperGenerationStrategy wrapperGenerator) {
+		Element anySingleBookPage = singleBookUrls.values().iterator().next();
+		WebWrapper wrapper = wrapperGenerator.generateWrapper(anySingleBookPage, new Elements(multiBookPage));
+		
+		logger.info("Adding wrapper {}", wrapper);
+		return ObjectifyService.ofy().save().entity(wrapper).now();
+	}
+
+
 	private WebWrapper getWrapperForSite(String site) {
 		Preconditions.checkNotNull(site);
 		
 		return ObjectifyService.ofy().load().type(WebWrapper.class).filter("site", site).first().now();
 	}
+	*/
 }

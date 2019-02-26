@@ -56,6 +56,11 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 
 		return book;
 	}
+	
+	@Override
+	public Book extractBook(Document bookPage) {
+		throw new UnsupportedOperationException();
+	}
 
 	@Override
 	public String extractTitle(Element htmlElement) {
@@ -118,12 +123,12 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 	}
 
 	@Override
-	public PricePoint extractPricePoint(Element htmlElement, Locale locale, Instant retrievedTime) {
+	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
 		String priceText = htmlElement.selectFirst(wrapper.getPriceSelector()).text();
 
 		PricePoint pricePoint = null;
 		try {
-			pricePoint = PricePoint.valueOf(priceText, locale, retrievedTime, htmlElement.baseUri());
+			pricePoint = PricePoint.valueOf(priceText, locale, Instant.now(), htmlElement.baseUri());
 		} catch (ParseException e) {
 			logger.warn("Price tag was ill-formated {}", priceText);
 		} catch (MalformedURLException e) {

@@ -16,13 +16,12 @@ public final class Main {
 	//public static final ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 	
 	public static void main(String[] args) throws IOException {
-		
+		ProductDatabaseManager dao = ProductDatabaseManager.instance;
 		if (args.length > 0) {
 			for (String startUrl: args) {
 				CrawlRequest request = new CrawlRequest(startUrl);
 				Miner miner = new Miner(request);
-				
-				
+				miner.run();
 			}
 		}
 		

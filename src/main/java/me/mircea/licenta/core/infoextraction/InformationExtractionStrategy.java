@@ -38,6 +38,9 @@ public interface InformationExtractionStrategy {
 	public default Book extractBook(Element bookCard) {
 		return extractBook(bookCard, null);
 	}
+	
+	public Book extractBook(Document bookPage);
+	
 
 	public String extractTitle(Element htmlElement);
 	
@@ -51,7 +54,7 @@ public interface InformationExtractionStrategy {
 	
 	public String extractPublisher(Element htmlElement);
 	
-	public PricePoint extractPricePoint(Element bookCard, Locale locale, Instant retrievedTime);
+	public PricePoint extractPricePoint(Element bookCard, Locale locale);
 
 
 	/**

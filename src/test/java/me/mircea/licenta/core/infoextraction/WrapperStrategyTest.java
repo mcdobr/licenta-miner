@@ -164,15 +164,15 @@ public class WrapperStrategyTest {
 		PricePoint price;
 		
 		strategy = new WrapperStrategy(donor.generateWrapper(alexandriaMainContent));
-		price = strategy.extractPricePoint(alexandriaMainContent, Locale.forLanguageTag("ro-ro"), Instant.now());
+		price = strategy.extractPricePoint(alexandriaMainContent, Locale.forLanguageTag("ro-ro"));
 		assertEquals(39.00, price.getNominalValue().doubleValue(), 1e-5);
 		
 		strategy = new WrapperStrategy(donor.generateWrapper(carturestiMainContent));
-		price = strategy.extractPricePoint(carturestiMainContent, Locale.forLanguageTag("ro-ro"), Instant.now());
+		price = strategy.extractPricePoint(carturestiMainContent, Locale.forLanguageTag("ro-ro"));
 		assertEquals(41.95, price.getNominalValue().doubleValue(), 1e-5);
 		
 		strategy = new WrapperStrategy(donor.generateWrapper(librisMainContent));
-		price = strategy.extractPricePoint(librisMainContent, Locale.forLanguageTag("ro-ro"), Instant.now());
+		price = strategy.extractPricePoint(librisMainContent, Locale.forLanguageTag("ro-ro"));
 		assertEquals(32.55, price.getNominalValue().doubleValue(), 1e-5);
 	}
 }

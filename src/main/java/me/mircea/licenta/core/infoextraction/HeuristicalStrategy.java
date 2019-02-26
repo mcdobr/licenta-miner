@@ -43,6 +43,7 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		return doc.select(PRODUCT_CARD_SELECTOR);
 	}
 
+	// TODO: remove this code duplication
 	@Override
 	public Book extractBook(Element bookCard, Document bookPage) {
 		Preconditions.checkNotNull(bookCard);
@@ -66,9 +67,40 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		return book;
 	}
 	
+
+	@Override
+	public Book extractBook(Document bookPage) {
+		Book book = new Book();
+		book.setTitle(extractTitle(bookPage));
+		book.setImageUrl(extractImageUrl(bookPage));
+		book.setDescription(extractDescription(bookPage));
+		
+		final Map<String, String> bookAttributes = extractAttributes(bookPage);
+		if (bookAttributes.isEmpty())
+			logger.debug("AttributesMap is empty on {}", bookPage.location());
+		
+		book.setAuthors(extractAuthors(bookPage));
+		book.setIsbn(extractIsbn(bookPage));
+		book.setFormat(extractFormat(bookPage));
+		book.setPublisher(extractPublisher(bookPage));
+		
+		book.getKeywords().addAll(splitKeywords(book.getTitle(), book.getIsbn(), book.getPublisher(), book.getFormat()));
+		book.getKeywords().addAll(splitKeywords(book.getAuthors()));
+		return book;
+	}
+	
 	@Override
 	public String extractTitle(Element htmlElement) {
-		return htmlElement.select(CssUtil.makeClassOrIdContains(TextContentAnalyzer.titleWordSet)).first().text();
+		Element ogTitle = htmlElement.selectFirst("meta[property='og:title']");
+		if (ogTitle != null)
+			return ogTitle.attr("content");
+		
+		Element title = htmlElement.selectFirst("title");
+		if (title != null)
+			return title.text();
+		
+		String cssSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.titleWordSet);
+		return htmlElement.select(cssSelector).first().text();
 	}
 	
 	@Override
@@ -91,16 +123,17 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	
 	@Override
 	public String extractImageUrl(Element htmlElement) {
+		Element ogImage = htmlElement.selectFirst("meta[property*='image']");
+		if (ogImage != null)
+			return ogImage.attr("content");
+		
 		Elements imagesWithAlt = htmlElement.select("img[alt]");
 		imagesWithAlt.removeAll(htmlElement.select("img[alt='']"));
 		
-		String result = imagesWithAlt.first().absUrl("src");
-		if (result.isEmpty()) {
-			Elements imagesInMetadata = htmlElement.select("meta[property*='image']");
-			result = imagesInMetadata.first().attr("content");
-		}
+		if (!imagesWithAlt.isEmpty())
+			return imagesWithAlt.first().absUrl("src");
 		
-		return result;
+		return null;
 	}
 	
 	@Override
@@ -137,14 +170,16 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	}
 	
 	@Override
-	public PricePoint extractPricePoint(Element htmlElement, Locale locale, Instant retrievedTime) {
+	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
 		Preconditions.checkNotNull(htmlElement);
 		String price = htmlElement.select(CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet)).text();
 
 		PricePoint pricePoint = null;
 		try {
-			final String url = HtmlUtil.extractFirstLinkOfElement(htmlElement);
-			pricePoint = PricePoint.valueOf(price, locale, retrievedTime, url);
+			//htmlElement.select("meta[og:url]");
+			
+			String url = htmlElement.baseUri();
+			pricePoint = PricePoint.valueOf(price, locale, Instant.now(), url);
 		} catch (ParseException e) {
 			logger.warn("Price tag was ill-formated {}", price);
 		} catch (MalformedURLException e) {
