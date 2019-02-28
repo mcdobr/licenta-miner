@@ -23,11 +23,12 @@ public class PricePoint {
 	private Long id;
 	private BigDecimal nominalValue;
 	private Currency currency;
-	
+
 	@Index
 	private Instant retrievedTime;
 	private String url;
-	//private Boolean available;
+	private String pageTitle;
+	// private Boolean available;
 	@Index
 	private String site;
 
@@ -93,6 +94,22 @@ public class PricePoint {
 		this.url = url;
 	}
 
+	public String getPageTitle() {
+		return pageTitle;
+	}
+
+	public void setPageTitle(String pageTitle) {
+		this.pageTitle = pageTitle;
+	}
+
+	public String getSite() {
+		return site;
+	}
+
+	public void setSite(String site) {
+		this.site = site;
+	}
+
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
@@ -101,6 +118,7 @@ public class PricePoint {
 		builder.append(", currency=").append(currency);
 		builder.append(", retrievedTime=").append(retrievedTime);
 		builder.append(", url=").append(url);
+		builder.append(", pageTitle=").append(pageTitle);
 		builder.append(", site=").append(site);
 		builder.append("]");
 		return builder.toString();

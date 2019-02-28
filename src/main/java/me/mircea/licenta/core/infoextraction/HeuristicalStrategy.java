@@ -186,6 +186,9 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		try {
 			String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
 			pricePoint = PricePoint.valueOf(priceTag, locale, Instant.now(), url);
+			if (htmlElement instanceof Document)
+				pricePoint.setPageTitle(((Document)htmlElement).title());
+			
 		} catch (ParseException e) {
 			logger.warn("Price tag was ill-formated {}, which resulted in {}", priceTag, e);
 		} catch (MalformedURLException e) {

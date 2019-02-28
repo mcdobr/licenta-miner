@@ -33,79 +33,52 @@ import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
 import static com.googlecode.objectify.ObjectifyService.*;
 
-
 /**
  * @brief This class is used to extract books from product description pages.
  */
 public class Miner {
 	private static final Logger logger = LoggerFactory.getLogger(Miner.class);
-	
+
 	private final CrawlRequest crawlRequest;
 	private WebWrapper wrapper;
 	private final ExecutorService backgroundWorker;
-	
-	
+
 	public Miner(CrawlRequest crawlRequest) {
 		this.crawlRequest = crawlRequest;
-		
 		this.backgroundWorker = Executors.newSingleThreadExecutor();
-		//this.wrapper = ObjectifyService.run(() -> getWrapperForSite(site));
 	}
-	
 
 	public void index() throws InterruptedException {
 		InformationExtractionStrategy strategy = chooseStrategy();
 		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(crawlRequest.getDomain());
-		
-		for (Page page: pages) {
+
+		for (Page page : pages) {
 			Optional<Document> optionalDoc = tryToGetPage(page.getUrl());
 			if (optionalDoc.isPresent()) {
-				Document doc = optionalDoc.get();
-				
-				// Update crawl database
-				page.setTitle(doc.title());
-				page.setUrl(HtmlUtil.getCanonicalUrl(doc).orElse(page.getUrl()));
-				page.setRetrievedTime(Instant.now());
-				CrawlDatabaseManager.instance.upsertOnePage(page);
-				
-				// Extract product and persist on product database
-				backgroundWorker.submit(() -> {
-					AbstractMap.SimpleEntry<Book, PricePoint> bop = extractBookOffer(doc, strategy);
-					if (bop.getKey().getIsbn() == null)
-						return;
-					
-					ObjectifyService.run(() -> { persistBookOfferPair(bop); return null; });
-				});
+				Document pageContent = optionalDoc.get();
+
+				updateProductsDatabase(strategy, pageContent);
+				updateCrawlFrontier(page, pageContent);
 			}
-			
 			TimeUnit.MILLISECONDS.sleep(crawlRequest.getRobotRules().getCrawlDelay());
 		}
-		
-		// Shutdown executor 
-		if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES)) {
-			backgroundWorker.shutdownNow();
-			if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES))
-			{
-				logger.info("Exiting because of timeout: {}", backgroundWorker);
-				System.exit(0);
-			}
-			logger.info("Exiting normally: {}", backgroundWorker);
-		}
+
+		shutdownExecutor();
 	}
-	
 
 	private InformationExtractionStrategy chooseStrategy() {
-		//WebWrapper wrapper = getWrapperForSite(this.site);
+		// WebWrapper wrapper = getWrapperForSite(this.site);
 		return new HeuristicalStrategy();
 	}
-	
+
 	private Optional<Document> tryToGetPage(String url) {
 		final int MAX_TRIES = 2;
 		Document bookPage = null;
 		for (int i = 0; i < MAX_TRIES; ++i) {
 			try {
-				logger.info("Trying to fetch {} at {}", url, Instant.now());
-				bookPage = HtmlUtil.sanitizeHtml(Jsoup.connect(url).userAgent(this.crawlRequest.getProperties().get("user_agent")).get());
+				logger.info("Retrieving {} at {}", url, Instant.now());
+				bookPage = HtmlUtil.sanitizeHtml(
+						Jsoup.connect(url).userAgent(this.crawlRequest.getProperties().get("user_agent")).get());
 				break;
 			} catch (SocketTimeoutException e) {
 				logger.warn("Socket timed out on {}", url);
@@ -115,40 +88,62 @@ public class Miner {
 		}
 		return Optional.ofNullable(bookPage);
 	}
-	
-	private AbstractMap.SimpleEntry<Book, PricePoint> extractBookOffer(Document page, InformationExtractionStrategy strategy) {
+
+	private void updateProductsDatabase(InformationExtractionStrategy strategy, Document pageContent) {
+		backgroundWorker.submit(() -> {
+			AbstractMap.SimpleEntry<Book, PricePoint> bop = extractBookOffer(pageContent, strategy);
+			if (bop.getKey().getIsbn() == null)
+				return;
+			
+			ObjectifyService.run(() -> {
+				persistBookOfferPair(bop);
+				return null;
+			});
+		});
+	}
+
+	private void updateCrawlFrontier(Page page, Document content) {
+		page.setTitle(content.title());
+		page.setUrl(HtmlUtil.getCanonicalUrl(content).orElse(page.getUrl()));
+		page.setRetrievedTime(Instant.now());
+		CrawlDatabaseManager.instance.upsertOnePage(page);
+	}
+
+	private AbstractMap.SimpleEntry<Book, PricePoint> extractBookOffer(Document page,
+			InformationExtractionStrategy strategy) {
 		Book book = strategy.extractBook(page);
 		PricePoint offer = strategy.extractPricePoint(page, Locale.forLanguageTag("ro-ro"));
+		offer.setPageTitle(page.title());
 		
 		return new AbstractMap.SimpleEntry<>(book, offer);
 	}
-	
+
 	private void persistBookOfferPair(AbstractMap.SimpleEntry<Book, PricePoint> bookOfferPair) {
 		persistBookOfferPair(bookOfferPair.getKey(), bookOfferPair.getValue());
 	}
-	
+
 	private void persistBookOfferPair(Book book, PricePoint offer) {
 		List<Book> persistedBooks = findBookByIsbn(book);
 		Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
-		
-		book.getPricepoints().add(offerKey);	
+
+		book.getPricepoints().add(offerKey);
 		if (persistedBooks.isEmpty()) {
 			ofy().save().entity(book);
 			logger.info("Saving new {} to db.", book);
 		} else {
 			Optional<Book> mergedBook = persistedBooks.stream().reduce(Book::merge);
-			
+
 			if (mergedBook.isPresent()) {
 				Book bookToPersist = mergedBook.get();
 				bookToPersist = Book.merge(bookToPersist, book);
-				
+
 				ofy().delete().entities(persistedBooks);
 				ofy().save().entities(bookToPersist);
 				logger.info("Updating book to {} in db.", mergedBook.get());
 			}
 		}
 	}
-	
+
 	/**
 	 * @return A list of books containing either one with the same isbn, or other
 	 *         books that have the same name.
@@ -160,20 +155,15 @@ public class Miner {
 		else
 			return Collections.emptyList();
 	}
-	
-	/*
-	private Key<WebWrapper> persistNewWrapper(WrapperGenerationStrategy wrapperGenerator) {
-		Element anySingleBookPage = singleBookUrls.values().iterator().next();
-		WebWrapper wrapper = wrapperGenerator.generateWrapper(anySingleBookPage, new Elements(multiBookPage));
-		
-		logger.info("Adding wrapper {}", wrapper);
-		return ObjectifyService.ofy().save().entity(wrapper).now();
-	}
 
-	private WebWrapper getWrapperForSite(String site) {
-		Preconditions.checkNotNull(site);
-		
-		return ObjectifyService.ofy().load().type(WebWrapper.class).filter("site", site).first().now();
+	private void shutdownExecutor() throws InterruptedException {
+		if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES)) {
+			backgroundWorker.shutdownNow();
+			if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES)) {
+				logger.info("Exiting because of timeout: {}", backgroundWorker);
+				System.exit(0);
+			}
+			logger.info("Exiting normally: {}", backgroundWorker);
+		}
 	}
-	*/
 }
