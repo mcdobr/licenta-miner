@@ -4,6 +4,7 @@ import java.net.MalformedURLException;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -54,9 +55,6 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		book.setDescription(extractDescription(bookPage));
 		
 		final Map<String, String> bookAttributes = extractAttributes(bookPage);
-		if (bookAttributes.isEmpty())
-			logger.debug("AttributesMap is empty on {}", bookPage.location());
-		
 		book.setAuthors(extractAuthors(bookPage));
 		book.setIsbn(extractIsbn(bookPage));
 		book.setFormat(extractFormat(bookPage));
@@ -76,9 +74,6 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		book.setDescription(extractDescription(bookPage));
 		
 		final Map<String, String> bookAttributes = extractAttributes(bookPage);
-		if (bookAttributes.isEmpty())
-			logger.debug("AttributesMap is empty on {}", bookPage.location());
-		
 		book.setAuthors(extractAuthors(bookPage));
 		book.setIsbn(extractIsbn(bookPage));
 		book.setFormat(extractFormat(bookPage));
@@ -140,7 +135,10 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	public String extractIsbn(Element htmlElement) {
 		Map<String, String> attributes = this.extractAttributes(htmlElement);
 		String isbn = null;
-		Optional<String> isbnAttribute = attributes.keySet().stream().filter(TextContentAnalyzer.codeWordSet::contains).findFirst();
+		Optional<String> isbnAttribute = attributes.keySet()
+				.stream()
+				.filter(key -> !Collections.disjoint(TextContentAnalyzer.codeWordSet, Arrays.asList(key.split("[\\s|,.;:]"))))
+				.findFirst();
 		if (isbnAttribute.isPresent())
 			isbn = attributes.get(isbnAttribute.get()).replaceAll("^[ a-zA-Z]*", "");
 		
@@ -151,9 +149,13 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	public String extractFormat(Element htmlElement) {
 		Map<String, String> attributes = this.extractAttributes(htmlElement);
 		String format = null;
-		Optional<String> formatAttribute = attributes.values().stream().filter(TextContentAnalyzer.formatsWordSet::containsKey).findFirst();
+		
+		Optional<Map.Entry<String, String>> formatAttribute = attributes.entrySet().stream()
+			.filter(entry -> TextContentAnalyzer.formatsWordSet.containsKey(entry.getValue()))
+			.findFirst();
+		
 		if (formatAttribute.isPresent())
-			format = attributes.get(formatAttribute.get());
+			format = TextContentAnalyzer.formatsWordSet.get(formatAttribute.get().getValue());
 		
 		return format;
 	}
@@ -162,9 +164,14 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	public String extractPublisher(Element htmlElement) {
 		Map<String, String> attributes = this.extractAttributes(htmlElement);
 		String publisher = null;
-		Optional<String> publisherAttribute = attributes.keySet().stream().filter(TextContentAnalyzer.publisherWordSet::contains).findFirst();
+		
+		Optional<Map.Entry<String, String>> publisherAttribute = attributes.entrySet()
+				.stream()
+				.filter(entry -> !Collections.disjoint(Arrays.asList(entry.getKey().split(TextContentAnalyzer.SEPARATORS)), TextContentAnalyzer.publisherWordSet))
+				.findFirst();
+		
 		if (publisherAttribute.isPresent())
-			publisher = attributes.get(publisherAttribute.get());
+			publisher = publisherAttribute.get().getValue();
 		
 		return publisher;
 	}
@@ -172,16 +179,15 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	@Override
 	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
 		Preconditions.checkNotNull(htmlElement);
-		String price = htmlElement.select(CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet)).text();
-
+		// TODO: be locale sensitive
+		String priceTag = htmlElement.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)," + CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet)).text();
+		
 		PricePoint pricePoint = null;
 		try {
-			//htmlElement.select("meta[og:url]");
-			
-			String url = htmlElement.baseUri();
-			pricePoint = PricePoint.valueOf(price, locale, Instant.now(), url);
+			String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
+			pricePoint = PricePoint.valueOf(priceTag, locale, Instant.now(), url);
 		} catch (ParseException e) {
-			logger.warn("Price tag was ill-formated {}", price);
+			logger.warn("Price tag was ill-formated {}, which resulted in {}", priceTag, e);
 		} catch (MalformedURLException e) {
 			logger.warn("Url was malformed {}", e);
 		}
@@ -212,14 +218,16 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 			if (isbnElement.text().trim().equals(isbn))
 				isbnElement = isbnElement.parent();
 
-			// TODO: tag ending aware?
 			Elements keyValuePairs = isbnElement.siblingElements();
 			keyValuePairs.add(isbnElement);
 			for (Element element : keyValuePairs) {
 				String[] keyValuePair = element.text().split(":", 2);
 
-				if (keyValuePair.length > 1)
+				if (keyValuePair.length > 1) {
 					bookAttributes.put(keyValuePair[0].trim(), keyValuePair[1].trim());
+				} else if (keyValuePair.length == 1) {
+					bookAttributes.put(keyValuePair[0].trim(), keyValuePair[0].trim());
+				}
 			}
 		}
 
@@ -355,7 +363,7 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		Set<String> result = new HashSet<>();
 		for (String str : values) {
 			if (str != null) {
-				List<String> eligibleWords = Arrays.asList(str.split(" "))
+				List<String> eligibleWords = Arrays.asList(str.split("[ .,&!?]"))
 						.stream()
 						.filter(word -> word.length() >= MIN_KEYWORD_LENGTH)
 						.map(word -> word.toLowerCase())

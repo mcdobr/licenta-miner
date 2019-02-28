@@ -1,15 +1,10 @@
 package me.mircea.licenta.core.entities;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import java.net.MalformedURLException;
 import java.time.Instant;
 import java.util.Currency;
 import java.util.Locale;
-import java.util.Optional;
-
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -40,21 +35,16 @@ public class BookTest {
 		Book persisted = new Book(1L, "Anna Karenina", "Limba de lemn", "Lev Tolstoi");
 		Book addition = new Book(null, "Anna Karenina", "Si mai multa limba de lemn", "Lev Tolstoi");
 	
-		Optional<Book> mergeOperation = Book.merge(persisted, addition);
-		assertTrue(mergeOperation.isPresent());	
-		Book merged = mergeOperation.get();
+		Book merged = Book.merge(persisted, addition);
 		assertEquals("Si mai multa limba de lemn", merged.getDescription());
 		
 		addition.setIsbn("1234567890123");
 		
-		mergeOperation = Book.merge(persisted, addition);
-		assertTrue(mergeOperation.isPresent());	
-		merged = mergeOperation.get();
+		merged = Book.merge(persisted, addition);
 		assertEquals("1234567890123", merged.getIsbn());
 		
 		persisted.setIsbn("0987654321098");
-		mergeOperation = Book.merge(persisted, addition);
-		assertFalse(mergeOperation.isPresent());
+		merged = Book.merge(persisted, addition);
 	}
 	
 	/** TODO: change this logic maybe

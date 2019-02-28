@@ -2,10 +2,14 @@ package me.mircea.licenta.miner;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.time.Instant;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.jsoup.Jsoup;
@@ -15,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.ObjectifyService;
-import com.googlecode.objectify.Work;
 import com.googlecode.objectify.cmd.LoadType;
 
 import me.mircea.licenta.core.entities.PricePoint;
@@ -32,28 +35,26 @@ import static com.googlecode.objectify.ObjectifyService.*;
 
 
 /**
- * @author mircea
- * @brief This class is used to extract books from a (single) given multi-book
- *        page. The intended strategy is to extract the basic information of the
- *        given entry, then using the specific-book page, to correlate and find
- *        out details about the book.
+ * @brief This class is used to extract books from product description pages.
  */
-public class Miner implements Runnable {
+public class Miner {
 	private static final Logger logger = LoggerFactory.getLogger(Miner.class);
 	
-	private CrawlRequest crawlRequest;
+	private final CrawlRequest crawlRequest;
 	private WebWrapper wrapper;
+	private final ExecutorService backgroundWorker;
+	
 	
 	public Miner(CrawlRequest crawlRequest) {
 		this.crawlRequest = crawlRequest;
+		
+		this.backgroundWorker = Executors.newSingleThreadExecutor();
 		//this.wrapper = ObjectifyService.run(() -> getWrapperForSite(site));
 	}
 	
 
-	@Override
-	public void run() {
+	public void index() throws InterruptedException {
 		InformationExtractionStrategy strategy = chooseStrategy();
-		
 		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(crawlRequest.getDomain());
 		
 		for (Page page: pages) {
@@ -61,22 +62,34 @@ public class Miner implements Runnable {
 			if (optionalDoc.isPresent()) {
 				Document doc = optionalDoc.get();
 				
-				AbstractMap.SimpleEntry<Book, PricePoint> bop = extractBookOffer(doc, strategy);
-				ObjectifyService.run(new Work<Void>() {
-					@Override
-					public Void run() {
-						persistBookOfferPair(bop);
-						return null;
-					}
+				// Update crawl database
+				page.setTitle(doc.title());
+				page.setUrl(HtmlUtil.getCanonicalUrl(doc).orElse(page.getUrl()));
+				page.setRetrievedTime(Instant.now());
+				CrawlDatabaseManager.instance.upsertOnePage(page);
+				
+				// Extract product and persist on product database
+				backgroundWorker.submit(() -> {
+					AbstractMap.SimpleEntry<Book, PricePoint> bop = extractBookOffer(doc, strategy);
+					if (bop.getKey().getIsbn() == null)
+						return;
+					
+					ObjectifyService.run(() -> { persistBookOfferPair(bop); return null; });
 				});
 			}
 			
-			try {
-				TimeUnit.MILLISECONDS.sleep(crawlRequest.getRobotRules().getCrawlDelay());
-			} catch (InterruptedException e) {
-				logger.warn("Interrupted thread: {}", e);
-				Thread.currentThread().interrupt();
+			TimeUnit.MILLISECONDS.sleep(crawlRequest.getRobotRules().getCrawlDelay());
+		}
+		
+		// Shutdown executor 
+		if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES)) {
+			backgroundWorker.shutdownNow();
+			if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES))
+			{
+				logger.info("Exiting because of timeout: {}", backgroundWorker);
+				System.exit(0);
 			}
+			logger.info("Exiting normally: {}", backgroundWorker);
 		}
 	}
 	
@@ -91,16 +104,13 @@ public class Miner implements Runnable {
 		Document bookPage = null;
 		for (int i = 0; i < MAX_TRIES; ++i) {
 			try {
-				bookPage = HtmlUtil.sanitizeHtml(Jsoup.connect(url).get());
-				TimeUnit.MILLISECONDS.sleep(this.crawlRequest.getRobotRules().getCrawlDelay());
+				logger.info("Trying to fetch {} at {}", url, Instant.now());
+				bookPage = HtmlUtil.sanitizeHtml(Jsoup.connect(url).userAgent(this.crawlRequest.getProperties().get("user_agent")).get());
 				break;
 			} catch (SocketTimeoutException e) {
 				logger.warn("Socket timed out on {}", url);
 			} catch (IOException e) {
 				logger.warn("Could not get page {}", url);
-			} catch (InterruptedException e) {
-				logger.info("Politeness sleep was interrupted {}", url);
-				Thread.currentThread().interrupt();
 			}
 		}
 		return Optional.ofNullable(bookPage);
@@ -118,20 +128,21 @@ public class Miner implements Runnable {
 	}
 	
 	private void persistBookOfferPair(Book book, PricePoint offer) {
-		List<Book> books = findBook(book);
+		List<Book> persistedBooks = findBookByIsbn(book);
 		Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
 		
 		book.getPricepoints().add(offerKey);	
-		if (books.isEmpty()) {
+		if (persistedBooks.isEmpty()) {
 			ofy().save().entity(book);
 			logger.info("Saving new {} to db.", book);
 		} else {
-			Book persistedBook = books.get(0);
-			Optional<Book> mergedBook = Book.merge(persistedBook, book);
-
+			Optional<Book> mergedBook = persistedBooks.stream().reduce(Book::merge);
+			
 			if (mergedBook.isPresent()) {
 				Book bookToPersist = mergedBook.get();
-				ofy().delete().entities(persistedBook);
+				bookToPersist = Book.merge(bookToPersist, book);
+				
+				ofy().delete().entities(persistedBooks);
 				ofy().save().entities(bookToPersist);
 				logger.info("Updating book to {} in db.", mergedBook.get());
 			}
@@ -142,20 +153,12 @@ public class Miner implements Runnable {
 	 * @return A list of books containing either one with the same isbn, or other
 	 *         books that have the same name.
 	 */
-	private List<Book> findBook(Book candidate) {
-		final int MAX_BOOKS_RETURNED = 10;
-		
+	private List<Book> findBookByIsbn(Book candidate) {
 		LoadType<Book> bookLoader = ObjectifyService.ofy().load().type(Book.class);
 		if (candidate.getIsbn() != null)
 			return bookLoader.filter("isbn", candidate.getIsbn()).list();
 		else
-			return bookLoader.filter("title", candidate.getTitle()).limit(MAX_BOOKS_RETURNED).list();
-	}
-
-	/*
-	public Elements getBookCards() {
-		String bookSelector = "[class*='produ']:has(img):has(a)";
-		return multiBookPage.select(String.format("%s:not(:has(%s))", bookSelector, bookSelector));
+			return Collections.emptyList();
 	}
 	
 	/*
@@ -166,7 +169,6 @@ public class Miner implements Runnable {
 		logger.info("Adding wrapper {}", wrapper);
 		return ObjectifyService.ofy().save().entity(wrapper).now();
 	}
-
 
 	private WebWrapper getWrapperForSite(String site) {
 		Preconditions.checkNotNull(site);

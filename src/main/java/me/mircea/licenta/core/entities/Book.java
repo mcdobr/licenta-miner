@@ -3,7 +3,6 @@ package me.mircea.licenta.core.entities;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +23,7 @@ public class Book {
 	private Long id;
 	private String title;
 	private String authors;
+	@Index
 	private String isbn;
 	@Index
 	private Set<String> keywords;
@@ -56,9 +56,6 @@ public class Book {
 		Preconditions.checkNotNull(persisted);
 		Preconditions.checkNotNull(addition);
 		
-		boolean oneHasNullIsbn = (persisted.isbn == null || addition.isbn == null);
-		boolean haveNonNullAndNonEqualIsbns = (persisted.isbn != null && addition.isbn != null && persisted.isbn.equals(addition.isbn));
-		Preconditions.checkArgument(oneHasNullIsbn || haveNonNullAndNonEqualIsbns, "Can not merge the two objects", persisted, addition);
 		
 		this.id = persisted.id;
 		this.title = (String)Normalizer.getNotNullIfPossible(persisted.title, addition.title);
@@ -82,16 +79,8 @@ public class Book {
 	 * @param addition
 	 * @return An object resulted from a merger that strives for completeness.
 	 */
-	public static Optional<Book> merge(Book persisted, Book addition) {
-		Book merged = null;
-		
-		try {
-			merged = new Book(persisted, addition);
-		} catch (Exception e) {
-			logger.error("Unsuccessful merger of two books {}", e);
-		}
-		
-		return Optional.ofNullable(merged);
+	public static Book merge(Book persisted, Book addition) {
+		return new Book(persisted, addition);
 	}
 	
 	public Long getId() {
@@ -182,7 +171,7 @@ public class Book {
 		builder.append(", authors=").append(authors);
 		builder.append(", isbn=").append(isbn);
 		builder.append(", description=").append(description != null);
-		builder.append(", pricepoints=").append(pricepoints);
+		builder.append(", pricepoints=").append(pricepoints != null);
 		builder.append(", keywords=").append(keywords);
 		builder.append(", publisher=").append(publisher);
 		builder.append(", format=").append(format);

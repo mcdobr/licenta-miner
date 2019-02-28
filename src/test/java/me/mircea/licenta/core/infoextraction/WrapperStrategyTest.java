@@ -6,7 +6,6 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Locale;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;

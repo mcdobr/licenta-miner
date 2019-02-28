@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Locale;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -18,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import me.mircea.licenta.core.entities.Book;
+import me.mircea.licenta.core.entities.PricePoint;
 import me.mircea.licenta.core.entities.WebWrapper;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
@@ -71,18 +73,10 @@ public class HeuristicalStrategyTest {
 	}
 	
 	@Test
-	public void shouldExtractElementsFromDownloadedMultiPage() throws IOException {
-		final URL resource = classLoader.getResource("bookGridAlexandria.html");
-		assertNotNull(resource);
-
-		File inputFile = new File(resource.getFile());
-		assertTrue(inputFile.exists());
-
-		Document doc = Jsoup.parse(inputFile, "UTF-8", "http://www.librariilealexandria.ro/carte");
-
-		Elements productElements = extractionStrategy.extractBookCards(doc);
-		assertNotNull(productElements);
-		assertTrue(2000 <= productElements.size());
+	public void shouldExtractImages() {
+		assertEquals("http://www.librariilealexandria.ro/image/cache/catalog/produse/carti/Filosofie%20politica/Pentru%20o%20genealogie%202017-480x480.jpg", extractionStrategy.extractImageUrl(alexandriaContent));
+		assertEquals("https://cdn.dc5.ro/img/prod/171704655-0.jpeg", extractionStrategy.extractImageUrl(carturestiContent));
+		assertEquals("https://www.libris.ro/img/pozeprod/59/1002/16/1250968.jpg", extractionStrategy.extractImageUrl(librisContent));
 	}
 
 	@Test
@@ -99,8 +93,33 @@ public class HeuristicalStrategyTest {
 		assertNotNull(book.getIsbn());
 		assertNotEquals(book.getIsbn().trim(), "");
 	}
+	@Test
+	public void shouldExtractFormats() {
+		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(alexandriaMainContent)));
+		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(carturestiMainContent)));
+		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(librisMainContent)));
+	}
+	
+	@Test
+	public void shouldExtractPublishers() {
+		assertEquals("Alexandria Publishing House", extractionStrategy.extractPublisher(alexandriaMainContent));	
+		assertEquals("Polirom", extractionStrategy.extractPublisher(carturestiMainContent));
+		assertEquals("HUMANITAS", extractionStrategy.extractPublisher(librisMainContent));
+	}
 
-
+	@Test
+	public void shouldExtractPrices() throws IOException {
+		PricePoint price;
+		
+		price = extractionStrategy.extractPricePoint(alexandriaMainContent, Locale.forLanguageTag("ro-ro"));
+		assertEquals(39.00, price.getNominalValue().doubleValue(), 1e-5);
+		
+		price = extractionStrategy.extractPricePoint(carturestiMainContent, Locale.forLanguageTag("ro-ro"));
+		assertEquals(41.95, price.getNominalValue().doubleValue(), 1e-5);
+		
+		price = extractionStrategy.extractPricePoint(librisMainContent, Locale.forLanguageTag("ro-ro"));
+		assertEquals(32.55, price.getNominalValue().doubleValue(), 1e-5);
+	}
 	
 	
 	@Test
@@ -155,5 +174,20 @@ public class HeuristicalStrategyTest {
 		assertEquals("#product_title", wrapper.getTitleSelector());
 		assertEquals("#price", wrapper.getPriceSelector());
 		assertEquals("#text_container>p", wrapper.getAttributeSelector());
+	}
+	
+	@Test
+	public void shouldExtractElementsFromDownloadedMultiPage() throws IOException {
+		final URL resource = classLoader.getResource("bookGridAlexandria.html");
+		assertNotNull(resource);
+
+		File inputFile = new File(resource.getFile());
+		assertTrue(inputFile.exists());
+
+		Document doc = Jsoup.parse(inputFile, "UTF-8", "http://www.librariilealexandria.ro/carte");
+
+		Elements productElements = extractionStrategy.extractBookCards(doc);
+		assertNotNull(productElements);
+		assertTrue(2000 <= productElements.size());
 	}
 }
