@@ -16,12 +16,7 @@ public final class Main {
 				CrawlRequest request = new CrawlRequest(startUrl);
 				Miner miner = new Miner(request);
 				
-				try {
-					miner.index();
-				} catch (InterruptedException e) {
-					logger.warn("Interrupted thread: {}", e);
-					Thread.currentThread().interrupt();
-				}
+				miner.run();
 			}
 		}
 	}

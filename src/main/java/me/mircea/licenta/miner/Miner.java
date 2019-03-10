@@ -36,7 +36,7 @@ import static com.googlecode.objectify.ObjectifyService.*;
 /**
  * @brief This class is used to extract books from product description pages.
  */
-public class Miner {
+public class Miner implements Runnable {
 	private static final Logger logger = LoggerFactory.getLogger(Miner.class);
 
 	private final CrawlRequest crawlRequest;
@@ -48,7 +48,8 @@ public class Miner {
 		this.backgroundWorker = Executors.newSingleThreadExecutor();
 	}
 
-	public void index() throws InterruptedException {
+	@Override
+	public void run() {
 		InformationExtractionStrategy strategy = chooseStrategy();
 		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(crawlRequest.getDomain());
 
@@ -60,10 +61,14 @@ public class Miner {
 				updateProductsDatabase(strategy, pageContent);
 				updateCrawlFrontier(page, pageContent);
 			}
-			TimeUnit.MILLISECONDS.sleep(crawlRequest.getRobotRules().getCrawlDelay());
+			try {
+				TimeUnit.MILLISECONDS.sleep(crawlRequest.getRobotRules().getCrawlDelay());
+			} catch (InterruptedException e) {
+				logger.warn("Thread interrupted {}", e);
+				Thread.currentThread().interrupt();
+			}
 		}
-
-		shutdownExecutor();
+		//shutdownExecutor();
 	}
 
 	private InformationExtractionStrategy chooseStrategy() {

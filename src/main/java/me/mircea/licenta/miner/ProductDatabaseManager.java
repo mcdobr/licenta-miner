@@ -12,7 +12,7 @@ import me.mircea.licenta.core.entities.WebWrapper;
 import me.mircea.licenta.db.products.impl.CurrencyTranslatorFactory;
 import me.mircea.licenta.db.products.impl.InstantTranslatorFactory;
 
-class ProductDatabaseManager {
+public class ProductDatabaseManager {
 	static {
 		Datastore datastore = DatastoreOptions.newBuilder()
 				.setProjectId("bookworm-221210")
