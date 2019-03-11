@@ -1,4 +1,4 @@
-package me.mircea.licenta.core.infoextraction;
+package me.mircea.licenta.scraper.infoextraction;
 
 import java.net.MalformedURLException;
 import java.text.ParseException;
@@ -18,9 +18,9 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 
-import me.mircea.licenta.core.entities.Book;
-import me.mircea.licenta.core.entities.PricePoint;
-import me.mircea.licenta.core.entities.WebWrapper;
+import me.mircea.licenta.products.db.Book;
+import me.mircea.licenta.products.db.PricePoint;
+import me.mircea.licenta.products.db.WebWrapper;
 import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
 
 public class WrapperStrategy implements InformationExtractionStrategy {

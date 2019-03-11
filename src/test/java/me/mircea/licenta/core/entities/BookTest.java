@@ -5,6 +5,8 @@ import java.net.MalformedURLException;
 import java.time.Instant;
 import java.util.Currency;
 import java.util.Locale;
+
+import me.mircea.licenta.products.db.Book;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;

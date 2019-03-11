@@ -9,6 +9,9 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Locale;
 
+import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
+import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
+import me.mircea.licenta.scraper.infoextraction.WrapperGenerationStrategy;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -18,9 +21,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.mircea.licenta.core.entities.Book;
-import me.mircea.licenta.core.entities.PricePoint;
-import me.mircea.licenta.core.entities.WebWrapper;
+import me.mircea.licenta.products.db.Book;
+import me.mircea.licenta.products.db.PricePoint;
+import me.mircea.licenta.products.db.WebWrapper;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
 public class HeuristicalStrategyTest {

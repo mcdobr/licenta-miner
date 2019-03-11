@@ -1,4 +1,4 @@
-package me.mircea.licenta.core.infoextraction;
+package me.mircea.licenta.scraper.infoextraction;
 
 import java.util.Locale;
 import java.util.Map;
@@ -7,8 +7,8 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import me.mircea.licenta.core.entities.PricePoint;
-import me.mircea.licenta.core.entities.Book;
+import me.mircea.licenta.products.db.PricePoint;
+import me.mircea.licenta.products.db.Book;
 
 /**
  * @author mircea

@@ -4,13 +4,15 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 
+import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
+import me.mircea.licenta.scraper.infoextraction.SemanticWebStrategy;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.junit.Test;
 
-import me.mircea.licenta.core.entities.Book;
+import me.mircea.licenta.products.db.Book;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
 public class SemanticWebStrategyTest {

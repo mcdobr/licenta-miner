@@ -1,7 +1,6 @@
-package me.mircea.licenta.miner.webservices;
+package me.mircea.licenta.scraper.webservices;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -15,12 +14,11 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import me.mircea.licenta.scraper.Scraper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.mircea.licenta.core.crawl.CrawlRequest;
-import me.mircea.licenta.miner.Miner;
-import me.mircea.licenta.miner.ProductDatabaseManager;
+import me.mircea.licenta.scraper.ProductDatabaseManager;
 
 @Path("/jobs")
 public class JobResource {
@@ -46,14 +44,12 @@ public class JobResource {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response createCrawlerJob(JsonObject scrapeRequest) {
-		CrawlRequest request;
 		try {
-			request = new CrawlRequest(scrapeRequest.getString("seed"));
-			Miner miner = new Miner(request);
-			
-			ASYNC_TASK_EXECUTOR.submit(miner);
+			Scraper scraper = new Scraper(scrapeRequest.getString("seed"));
+
+			//ASYNC_TASK_EXECUTOR.submit(scraper);
 			return Response.status(202)
-					.entity(request)
+					.entity(scraper.getJob())
 					.build();
 		} catch (IOException e) {
 			LOGGER.warn("Could not read a file {}", e);

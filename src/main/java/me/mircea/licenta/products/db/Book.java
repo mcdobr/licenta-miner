@@ -1,4 +1,4 @@
-package me.mircea.licenta.core.entities;
+package me.mircea.licenta.products.db;
 
 import java.util.ArrayList;
 import java.util.HashSet;

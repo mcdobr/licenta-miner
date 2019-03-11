@@ -1,4 +1,4 @@
-package me.mircea.licenta.db.products.impl;
+package me.mircea.licenta.products.db.impl;
 
 import java.time.Instant;
 

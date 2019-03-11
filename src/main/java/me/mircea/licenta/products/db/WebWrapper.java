@@ -1,4 +1,4 @@
-package me.mircea.licenta.core.entities;
+package me.mircea.licenta.products.db;
 
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;

@@ -1,4 +1,4 @@
-package me.mircea.licenta.core.infoextraction;
+package me.mircea.licenta.scraper.infoextraction;
 
 public interface RuleBasedStrategy extends InformationExtractionStrategy, WrapperGenerationStrategy {
 
