@@ -1,8 +1,8 @@
 package me.mircea.licenta.scraper;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.SocketTimeoutException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -10,6 +10,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import me.mircea.licenta.core.crawl.db.model.Job;
+import me.mircea.licenta.core.crawl.db.model.JobStatus;
 import me.mircea.licenta.core.crawl.db.model.JobType;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -20,11 +21,11 @@ import com.googlecode.objectify.Key;
 import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.cmd.LoadType;
 
-import me.mircea.licenta.products.db.PricePoint;
-import me.mircea.licenta.core.crawl.CrawlDatabaseManager;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
 import me.mircea.licenta.core.crawl.db.model.Page;
-import me.mircea.licenta.products.db.Book;
-import me.mircea.licenta.products.db.WebWrapper;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
 import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
@@ -48,19 +49,23 @@ public class Scraper implements Runnable {
 
 	@Override
 	public void run() {
-		Timer timer = new Timer();
-		timer.schedule(new TimerTask() {
-			@Override
-			public void run() {
+		try {
+			InformationExtractionStrategy strategy = chooseStrategy();
+			scrape(strategy);
+		} catch (InterruptedException e) {
+			logger.warn("Thread interrupted {}", e);
+			Thread.currentThread().interrupt();
+		}
+	}
 
-			}
-		}, Duration.ofMinutes(10).toMillis());
-
-
-		InformationExtractionStrategy strategy = chooseStrategy();
+	public void scrape(InformationExtractionStrategy strategy) throws InterruptedException {
+		CrawlDatabaseManager.instance.upsertJob(this.job);
 		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(job.getDomain());
 
 		for (Page page : pages) {
+			if (this.job.getId().equals(page.getLastJob()))
+				break;
+
 			Optional<Document> optionalDoc = tryToGetPage(page.getUrl());
 			if (optionalDoc.isPresent()) {
 				Document pageContent = optionalDoc.get();
@@ -68,14 +73,14 @@ public class Scraper implements Runnable {
 				updateProductsDatabase(strategy, pageContent);
 				updateCrawlFrontier(page, pageContent);
 			}
-			try {
-				TimeUnit.MILLISECONDS.sleep(job.getRobotRules().getCrawlDelay());
-			} catch (InterruptedException e) {
-				logger.warn("Thread interrupted {}", e);
-				Thread.currentThread().interrupt();
-			}
+			TimeUnit.MILLISECONDS.sleep(job.getRobotRules().getCrawlDelay());
 		}
-		//shutdownExecutor();
+
+		this.job.setEnd(Instant.now());
+		this.job.setStatus(JobStatus.FINISHED);
+		CrawlDatabaseManager.instance.upsertJob(job);
+
+		shutdownExecutor();
 	}
 
 	private InformationExtractionStrategy chooseStrategy() {
@@ -118,6 +123,8 @@ public class Scraper implements Runnable {
 		page.setTitle(content.title());
 		page.setUrl(HtmlUtil.getCanonicalUrl(content).orElse(page.getUrl()));
 		page.setRetrievedTime(Instant.now());
+		page.setLastJob(this.job.getId());
+
 		CrawlDatabaseManager.instance.upsertOnePage(page);
 	}
 
@@ -135,6 +142,9 @@ public class Scraper implements Runnable {
 	}
 
 	private void persistBookOfferPair(Book book, PricePoint offer) {
+		book.setLatestRetrievedTime(offer.getRetrievedTime());
+		book.setLatestRetrievedPrice(offer.getNominalValue().divide(BigDecimal.valueOf(100)).toString());
+
 		List<Book> persistedBooks = findBookByIsbn(book);
 		Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
 
@@ -169,13 +179,13 @@ public class Scraper implements Runnable {
 	}
 
 	private void shutdownExecutor() throws InterruptedException {
-		if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES)) {
+		if (!backgroundWorker.awaitTermination(1, TimeUnit.MINUTES)) {
 			backgroundWorker.shutdownNow();
-			if (!backgroundWorker.awaitTermination(2, TimeUnit.MINUTES)) {
-				logger.info("Exiting because of timeout: {}", backgroundWorker);
+			if (!backgroundWorker.awaitTermination(1, TimeUnit.MINUTES)) {
+				logger.info("Exiting scraper because of timeout: {}", backgroundWorker);
 				System.exit(0);
 			}
-			logger.info("Exiting normally: {}", backgroundWorker);
+			logger.info("Exiting scraper normally: {}", backgroundWorker);
 		}
 	}
 

@@ -3,7 +3,7 @@ package me.mircea.licenta.scraper.infoextraction;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import me.mircea.licenta.products.db.WebWrapper;
+import me.mircea.licenta.products.db.model.WebWrapper;
 
 public interface WrapperGenerationStrategy {
 	public WebWrapper generateWrapper(Element bookPage, Elements additionals);

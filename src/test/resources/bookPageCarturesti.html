@@ -1659,7 +1659,6 @@ document.body.appendChild(s);
 					classie.remove( morphSearch, 'open' );
 
 					// trick to hide input text once the search overlay closes
-					// todo: hardcoded times, should be done after transition ends
 					if( input.value !== '' ) {
 						setTimeout(function() {
 							classie.add( morphSearch, 'hideInput' );

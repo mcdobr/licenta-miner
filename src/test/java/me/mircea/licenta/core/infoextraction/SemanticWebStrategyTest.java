@@ -12,7 +12,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.junit.Test;
 
-import me.mircea.licenta.products.db.Book;
+import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
 public class SemanticWebStrategyTest {

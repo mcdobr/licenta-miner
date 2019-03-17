@@ -1,4 +1,4 @@
-package me.mircea.licenta.scraper;
+package me.mircea.licenta.products.db;
 
 import com.google.cloud.datastore.Datastore;
 import com.google.cloud.datastore.DatastoreOptions;
@@ -6,9 +6,9 @@ import com.googlecode.objectify.ObjectifyFactory;
 import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.impl.translate.opt.BigDecimalLongTranslatorFactory;
 
-import me.mircea.licenta.products.db.Book;
-import me.mircea.licenta.products.db.PricePoint;
-import me.mircea.licenta.products.db.WebWrapper;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import me.mircea.licenta.products.db.impl.CurrencyTranslatorFactory;
 import me.mircea.licenta.products.db.impl.InstantTranslatorFactory;
 

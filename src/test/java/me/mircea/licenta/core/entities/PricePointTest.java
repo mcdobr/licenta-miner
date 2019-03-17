@@ -11,7 +11,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Currency;
 import java.util.Locale;
 
-import me.mircea.licenta.products.db.PricePoint;
+import me.mircea.licenta.products.db.model.PricePoint;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.junit.Test;

@@ -7,8 +7,8 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import me.mircea.licenta.products.db.PricePoint;
-import me.mircea.licenta.products.db.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.Book;
 
 /**
  * @author mircea

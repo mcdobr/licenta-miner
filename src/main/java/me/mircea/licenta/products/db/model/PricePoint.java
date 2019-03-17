@@ -1,4 +1,4 @@
-package me.mircea.licenta.products.db;
+package me.mircea.licenta.products.db.model;
 
 import java.math.BigDecimal;
 import java.net.MalformedURLException;

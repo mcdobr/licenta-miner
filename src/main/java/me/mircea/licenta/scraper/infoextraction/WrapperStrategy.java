@@ -18,9 +18,9 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 
-import me.mircea.licenta.products.db.Book;
-import me.mircea.licenta.products.db.PricePoint;
-import me.mircea.licenta.products.db.WebWrapper;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
 
 public class WrapperStrategy implements InformationExtractionStrategy {
@@ -95,8 +95,7 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 
 	@Override
 	public String extractIsbn(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
@@ -118,8 +117,7 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 
 	@Override
 	public String extractFormat(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override

@@ -9,8 +9,8 @@ import org.jsoup.select.Elements;
 
 import com.google.common.base.Preconditions;
 
-import me.mircea.licenta.products.db.PricePoint;
-import me.mircea.licenta.products.db.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.Book;
 
 public class SemanticWebStrategy implements InformationExtractionStrategy {
 
@@ -59,55 +59,46 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 
 	@Override
 	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public String extractDescription(Document productPage) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public Map<String, String> extractAttributes(Element bookPage) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public String extractPublisher(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 	
 	@Override
 	public String extractFormat(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public String extractIsbn(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public String extractAuthors(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public String extractImageUrl(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
 	public String extractTitle(Element htmlElement) {
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 }

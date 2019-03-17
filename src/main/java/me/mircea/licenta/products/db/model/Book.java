@@ -1,5 +1,6 @@
-package me.mircea.licenta.products.db;
+package me.mircea.licenta.products.db.model;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +34,9 @@ public class Book {
 	private String publisher;
 	private String format;
 	private String imageUrl;
+
+	private Instant latestRetrievedTime;
+	private String latestRetrievedPrice;
 
 	public Book() {
 		this.pricepoints = new ArrayList<>();
@@ -161,6 +165,22 @@ public class Book {
 
 	public void setImageUrl(String imageUrl) {
 		this.imageUrl = imageUrl;
+	}
+
+	public Instant getLatestRetrievedTime() {
+		return latestRetrievedTime;
+	}
+
+	public void setLatestRetrievedTime(Instant latestRetrievedTime) {
+		this.latestRetrievedTime = latestRetrievedTime;
+	}
+
+	public String getLatestRetrievedPrice() {
+		return latestRetrievedPrice;
+	}
+
+	public void setLatestRetrievedPrice(String latestRetrievedPrice) {
+		this.latestRetrievedPrice = latestRetrievedPrice;
 	}
 
 	@Override

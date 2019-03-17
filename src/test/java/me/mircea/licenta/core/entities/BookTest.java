@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.Currency;
 import java.util.Locale;
 
-import me.mircea.licenta.products.db.Book;
+import me.mircea.licenta.products.db.model.Book;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -48,28 +48,4 @@ public class BookTest {
 		persisted.setIsbn("0987654321098");
 		merged = Book.merge(persisted, addition);
 	}
-	
-	/** TODO: change this logic maybe
-	@Test
-	public void shouldHaveOnlyOnePricepointPerSiteDay() throws MalformedURLException {
-		Book persisted = new Book(1L, "Anna Karenina", "Limba de lemn", Arrays.asList("Lev Tolstoi"));
-		Book addition = new Book(null, "Anna Karenina", "Si mai multa limba de lemn", Arrays.asList("Lev Tolstoi"));
-		
-		PricePoint p1 = new PricePoint(BigDecimal.valueOf(30.53), mockCurrency, mockInstant, mockUrl);
-		PricePoint p2 = new PricePoint(BigDecimal.valueOf(30.53), mockCurrency, mockInstant, mockUrl);
-
-		PricePoint p3 = new PricePoint(BigDecimal.valueOf(30.53), mockCurrency, mockInstant.plus(1, ChronoUnit.DAYS), mockUrl);
-		
-		
-		
-		persisted.getPricepoints().add(p1);
-		persisted.getPricepoints().add(p3);
-		addition.getPricepoints().add(p2);
-		
-		Optional<Book> mergeOperation = Book.merge(persisted, addition);
-		assertTrue(mergeOperation.isPresent());
-		Book merged = mergeOperation.get();
-		
-		assertEquals(2, merged.getPricepoints().size());
-	} */
 }

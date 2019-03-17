@@ -21,9 +21,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.mircea.licenta.products.db.Book;
-import me.mircea.licenta.products.db.PricePoint;
-import me.mircea.licenta.products.db.WebWrapper;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
 public class HeuristicalStrategyTest {
