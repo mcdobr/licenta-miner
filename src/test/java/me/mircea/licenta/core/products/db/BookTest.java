@@ -1,15 +1,16 @@
-package me.mircea.licenta.core.entities;
-
-import static org.junit.Assert.assertEquals;
-import java.net.MalformedURLException;
-import java.time.Instant;
-import java.util.Currency;
-import java.util.Locale;
+package me.mircea.licenta.core.products.db;
 
 import me.mircea.licenta.products.db.model.Book;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.net.MalformedURLException;
+import java.time.Instant;
+import java.util.Currency;
+import java.util.Locale;
+
+import static org.junit.Assert.assertEquals;
 
 public class BookTest {
 	@Rule

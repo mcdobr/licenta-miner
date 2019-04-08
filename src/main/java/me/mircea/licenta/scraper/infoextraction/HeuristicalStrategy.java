@@ -1,40 +1,32 @@
 package me.mircea.licenta.scraper.infoextraction;
 
-import java.net.MalformedURLException;
-import java.text.ParseException;
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
+import com.google.common.base.Preconditions;
+import me.mircea.licenta.core.parser.utils.CssUtil;
+import me.mircea.licenta.core.parser.utils.EntityNormalizer;
+import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Preconditions;
-
-import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.Book;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.core.parser.utils.CssUtil;
-import me.mircea.licenta.core.parser.utils.HtmlUtil;
-import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
+import java.net.MalformedURLException;
+import java.text.ParseException;
+import java.time.Instant;
+import java.util.*;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class HeuristicalStrategy implements RuleBasedStrategy {
-	private static final Logger logger = LoggerFactory.getLogger(HeuristicalStrategy.class);
-	private static final Pattern isbnPattern = Pattern.compile("(?=[-\\d\\ xX]{10,})\\d+[-\\ ]?\\d+[-\\ ]?\\d+[-\\ ]?\\d*[-\\ ]?[\\dxX]");
+	private static final Logger LOGGER = LoggerFactory.getLogger(HeuristicalStrategy.class);
+	private static final String ISBN_PATTERN_STRING = "(?=[-\\d\\ xX]{10,})\\d+[-\\ ]?\\d+[-\\ ]?\\d+[-\\ ]?\\d*[-\\ ]?[\\dxX]";
+	private static final Pattern ISBN_PATTERN = Pattern.compile(ISBN_PATTERN_STRING);
 	private static final String IMAGE_WITH_LINK_SELECTOR = "[class*='produ']:has(img):has(a)";
 	private static final String PRODUCT_CARD_SELECTOR = CssUtil.makeLeafOfSelector(IMAGE_WITH_LINK_SELECTOR);
 	
@@ -44,30 +36,17 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		return doc.select(PRODUCT_CARD_SELECTOR);
 	}
 
-	// TODO: remove this code duplication
-	@Override
-	public Book extractBook(Element bookCard, Document bookPage) {
-		Preconditions.checkNotNull(bookCard);
-
-		Book book = new Book();
-		book.setTitle(extractTitle(bookCard));
-		book.setImageUrl(extractImageUrl(bookPage));
-		book.setDescription(extractDescription(bookPage));
-		
-		final Map<String, String> bookAttributes = extractAttributes(bookPage);
-		book.setAuthors(extractAuthors(bookPage));
-		book.setIsbn(extractIsbn(bookPage));
-		book.setFormat(extractFormat(bookPage));
-		book.setPublisher(extractPublisher(bookPage));
-		
-		book.getKeywords().addAll(splitKeywords(book.getTitle(), book.getIsbn(), book.getPublisher(), book.getFormat()));
-		book.getKeywords().addAll(splitKeywords(book.getAuthors()));
-		return book;
-	}
-	
-
 	@Override
 	public Book extractBook(Document bookPage) {
+		Preconditions.checkNotNull(bookPage);
+
+		//String language = bookPage.selectFirst("html").attr("lang");
+		String language = "ro";
+		if (language == null)
+			language = "ro";
+
+		Locale locale = Locale.forLanguageTag(language);
+
 		Book book = new Book();
 		book.setTitle(extractTitle(bookPage));
 		book.setImageUrl(extractImageUrl(bookPage));
@@ -78,9 +57,16 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		book.setIsbn(extractIsbn(bookPage));
 		book.setFormat(extractFormat(bookPage));
 		book.setPublisher(extractPublisher(bookPage));
-		
-		book.getKeywords().addAll(splitKeywords(book.getTitle(), book.getIsbn(), book.getPublisher(), book.getFormat()));
-		book.getKeywords().addAll(splitKeywords(book.getAuthors()));
+
+
+		EntityNormalizer norm = new EntityNormalizer(locale);
+		Collection<String> relevantValuesForKeywords = new ArrayList<>(Arrays.asList(book.getTitle(),
+				book.getAuthors(),
+				book.getIsbn(),
+				book.getPublisher(),
+				book.getFormat()));
+
+		book.setKeywords(norm.splitKeywords(relevantValuesForKeywords));
 		return book;
 	}
 	
@@ -179,20 +165,22 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	@Override
 	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
 		Preconditions.checkNotNull(htmlElement);
-		// TODO: be locale sensitive
-		String priceTag = htmlElement.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)," + CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet)).text();
-		
+
 		PricePoint pricePoint = null;
 		try {
-			String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
-			pricePoint = PricePoint.valueOf(priceTag, locale, Instant.now(), url);
-			if (htmlElement instanceof Document)
-				pricePoint.setPageTitle(((Document)htmlElement).title());
-			
+			// TODO: be locale sensitive
+			Element priceElement = htmlElement.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)");
+			if (priceElement != null) {
+				String priceTag = priceElement.text().replaceAll(".*:", "").trim();
+				String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
+				pricePoint = PricePoint.valueOf(priceTag, locale, Instant.now(), url);
+				if (htmlElement instanceof Document)
+					pricePoint.setPageTitle(((Document) htmlElement).title());
+			}
 		} catch (ParseException e) {
-			logger.warn("Price tag was ill-formated {}, which resulted in {}", priceTag, e);
+			LOGGER.warn("Price tag was ill-formated {}, which resulted in {}", e);
 		} catch (MalformedURLException e) {
-			logger.warn("Url was malformed {}", e);
+			LOGGER.warn("Url was malformed {}", e);
 		}
 
 		return pricePoint;
@@ -208,38 +196,42 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	@Override
 	public Map<String, String> extractAttributes(Element bookPage) {
 		Preconditions.checkNotNull(bookPage);
+
 		Map<String, String> bookAttributes = new TreeMap<>();
+		Matcher isbnMatcher = ISBN_PATTERN.matcher(bookPage.text());
+		while (isbnMatcher.find()) {
+			String matchedText = isbnMatcher.group();
+			String isbn = matchedText.replaceAll("[\\s-]", "");
+			if (isbn.length() == 10 || isbn.length() == 13) {
+				LOGGER.debug("Found isbn {}", isbn);
 
-		Matcher isbnMatcher = isbnPattern.matcher(bookPage.text());
-		if (isbnMatcher.find()) {
-			String isbn = isbnMatcher.group();
-			logger.debug("Found isbn {}", isbn);
+				String findIsbnElement = String.format("*:contains(%s)", matchedText);
+				Element isbnElement = bookPage.select(findIsbnElement).last();
 
-			String findIsbnElement = String.format("*:contains(%s)", isbn);
-			Element isbnElement = bookPage.select(findIsbnElement).last();
+				if (isbnElement.text().trim().equals(isbn))
+					isbnElement = isbnElement.parent();
 
-			if (isbnElement.text().trim().equals(isbn))
-				isbnElement = isbnElement.parent();
+				Elements keyValuePairs = isbnElement.siblingElements();
+				keyValuePairs.add(isbnElement);
+				for (Element element : keyValuePairs) {
+					String[] keyValuePair = element.text().split(":", 2);
 
-			Elements keyValuePairs = isbnElement.siblingElements();
-			keyValuePairs.add(isbnElement);
-			for (Element element : keyValuePairs) {
-				String[] keyValuePair = element.text().split(":", 2);
-
-				if (keyValuePair.length > 1) {
-					bookAttributes.put(keyValuePair[0].trim(), keyValuePair[1].trim());
-				} else if (keyValuePair.length == 1) {
-					bookAttributes.put(keyValuePair[0].trim(), keyValuePair[0].trim());
+					if (keyValuePair.length > 1) {
+						bookAttributes.put(keyValuePair[0].trim(), keyValuePair[1].trim());
+					} else if (keyValuePair.length == 1) {
+						bookAttributes.put(keyValuePair[0].trim(), keyValuePair[0].trim());
+					}
 				}
+
+				break;
 			}
 		}
 
 		return bookAttributes;
 	}
-
+	//TODO: refactor this
 	@Override
 	public WebWrapper generateWrapper(Element bookPage, Elements additionals) {
-		//TODO: refactor this
 		WebWrapper wrapper = new WebWrapper();
 
 		String titleSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.titleWordSet);
@@ -254,10 +246,10 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 			wrapper.setAuthorsSelector(generateCssSelectorFor(new Elements(authorsElement)));
 		
 		String priceSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet);
-		Element priceElement = bookPage.select(priceSelector).first();
+		Element priceElement = bookPage.selectFirst(priceSelector);
 		//TODO: handle currency
 		String priceRegexSelector = ":matchesOwn(lei)";
-		Element priceRegexElement = bookPage.select(priceRegexSelector).first();
+		Element priceRegexElement = bookPage.selectFirst(priceRegexSelector);
 		if (!priceRegexElement.equals(priceElement)) {
 			String priceHtml = priceElement.html();
 			String priceRegexHtml = priceRegexElement.html();
@@ -307,11 +299,11 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 
 		return wrapper;
 	}
-	
-	
+
+	//TODO: refactor this
 	@Override
 	public String generateCssSelectorFor(Elements elements) {
-		//TODO: refactor this
+		Preconditions.checkNotNull(elements);
 		Preconditions.checkArgument(!elements.isEmpty());
 
 		String selector = null;
@@ -339,13 +331,17 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 				// Gets mode of tag name
 				final Map<String, Long> tagNameFrequencies = elements.stream().map(Element::tagName)
 						.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-				final long maxTagFrequency = tagNameFrequencies.values().stream().max(Long::compare).orElse(0L);
+				final long maxTagFrequency = tagNameFrequencies.values()
+						.stream()
+						.max(Long::compare)
+						.orElse(0L);
 				final List<String> tagModes = tagNameFrequencies.entrySet().stream()
-						.filter(tuple -> tuple.getValue() == maxTagFrequency).map(Map.Entry::getKey)
+						.filter(tuple -> tuple.getValue() == maxTagFrequency)
+						.map(Map.Entry::getKey)
 						.collect(Collectors.toList());
 				String tag = tagModes.get(0);
 
-				logger.info("Tagname frequencies: {}", tagNameFrequencies);
+				LOGGER.info("Tagname frequencies: {}", tagNameFrequencies);
 
 				// TODO: handle case when not all are the same, handle case when tag is not unique to the site
 				// Also this is probably breakable
@@ -358,22 +354,5 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		}
 		
 		return selector;
-	}
-	
-	private Set<String> splitKeywords(String ...values)
-	{
-		final int MIN_KEYWORD_LENGTH = 3;
-		Set<String> result = new HashSet<>();
-		for (String str : values) {
-			if (str != null) {
-				List<String> eligibleWords = Arrays.asList(str.split("[ .,&!?]"))
-						.stream()
-						.filter(word -> word.length() >= MIN_KEYWORD_LENGTH)
-						.map(word -> word.toLowerCase())
-						.collect(Collectors.toList());
-				result.addAll(eligibleWords);
-			}
-		}
-		return result;
 	}
 }

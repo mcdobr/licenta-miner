@@ -1,16 +1,14 @@
 package me.mircea.licenta.scraper.infoextraction;
 
-import java.util.Locale;
-import java.util.Map;
-
+import com.google.common.base.Preconditions;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import com.google.common.base.Preconditions;
-
-import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.Book;
+import java.util.Locale;
+import java.util.Map;
 
 public class SemanticWebStrategy implements InformationExtractionStrategy {
 
@@ -20,9 +18,11 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 		return doc.select("[itemtype$='Book'],[itemtype$='Book']");
 	}
 
+
 	@Override
-	public Book extractBook(Element htmlElement, Document productPage) {
-		Elements propElements = htmlElement.select("[itemprop]");
+	public Book extractBook(Document productPage) {
+		//throw new UnsupportedOperationException("Not implemented yet");
+		Elements propElements = productPage.select("[itemprop]");
 		
 		Book book = new Book();
 		for (Element item : propElements) {
@@ -44,17 +44,11 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 			}
 		}
 		
-		Element imgElement = htmlElement.select("img[src]").first();
+		Element imgElement = productPage.select("img[src]").first();
 		if (imgElement != null)
 			book.setImageUrl(imgElement.absUrl("src"));
 		
 		return book;
-	}
-	
-
-	@Override
-	public Book extractBook(Document bookPage) {
-		throw new UnsupportedOperationException();
 	}
 
 	@Override

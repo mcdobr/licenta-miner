@@ -1,5 +1,11 @@
 package me.mircea.licenta.products.db.model;
 
+import com.google.common.base.Preconditions;
+import com.googlecode.objectify.annotation.Entity;
+import com.googlecode.objectify.annotation.Id;
+import com.googlecode.objectify.annotation.Index;
+import me.mircea.licenta.core.parser.utils.HtmlUtil;
+
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
 import java.text.DecimalFormat;
@@ -9,13 +15,6 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.util.Currency;
 import java.util.Locale;
-
-import com.google.common.base.Preconditions;
-import com.googlecode.objectify.annotation.Entity;
-import com.googlecode.objectify.annotation.Id;
-import com.googlecode.objectify.annotation.Index;
-
-import me.mircea.licenta.core.parser.utils.HtmlUtil;
 
 @Entity
 public class PricePoint {
@@ -185,8 +184,7 @@ public class PricePoint {
 	 * @param locale
 	 *            The locale considered for extracting the price tag.
 	 * @param retrievedTime
-	 *            The day when the price was read.
-	 * @param site
+	 *            The timestamp when the price was read.
 	 * @return A pricepoint extracted from the string.
 	 * @throws ParseException
 	 *             if the String is not formatted according to the locale.

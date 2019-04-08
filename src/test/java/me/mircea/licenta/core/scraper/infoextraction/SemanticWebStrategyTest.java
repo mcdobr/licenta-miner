@@ -1,19 +1,16 @@
-package me.mircea.licenta.core.infoextraction;
+package me.mircea.licenta.core.scraper.infoextraction;
 
-import static org.junit.Assert.*;
-
-import java.io.IOException;
-
+import me.mircea.licenta.core.parser.utils.HtmlUtil;
 import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
 import me.mircea.licenta.scraper.infoextraction.SemanticWebStrategy;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.junit.Test;
 
-import me.mircea.licenta.products.db.model.Book;
-import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import java.io.IOException;
+
+import static org.junit.Assert.*;
 
 public class SemanticWebStrategyTest {
 	InformationExtractionStrategy extractionStrategy = new SemanticWebStrategy();
@@ -29,12 +26,6 @@ public class SemanticWebStrategyTest {
 	
 	@Test
 	public void shoudlExtractAttributes() throws IOException {
-		Document doc = HtmlUtil.sanitizeHtml(Jsoup.connect("https://www.bookdepository.com/category/2630/Romance/browse/viewmode/all").get());
-		Element productElement = extractionStrategy.extractBookCards(doc).get(0);
-		Book book = extractionStrategy.extractBook(productElement);
-		
-		assertNotNull(book);
-		assertNotNull(book.getTitle());
-		assertNotNull(book.getIsbn());
+		fail();
 	}
 }

@@ -1,7 +1,9 @@
-package me.mircea.licenta.core.entities;
+package me.mircea.licenta.core.products.db;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import me.mircea.licenta.products.db.model.PricePoint;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.junit.Test;
 
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
@@ -11,10 +13,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.Currency;
 import java.util.Locale;
 
-import me.mircea.licenta.products.db.model.PricePoint;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public class PricePointTest {
 	final String mockUrl = "http://www.dummyUrl.com";

@@ -1,14 +1,9 @@
-package me.mircea.licenta.core.infoextraction;
+package me.mircea.licenta.core.scraper.infoextraction;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
-import java.util.Locale;
-
+import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
 import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
 import me.mircea.licenta.scraper.infoextraction.WrapperGenerationStrategy;
@@ -21,10 +16,12 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.mircea.licenta.products.db.model.Book;
-import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.util.Locale;
+
+import static org.junit.Assert.*;
 
 public class HeuristicalStrategyTest {
 	private static final ClassLoader classLoader = HeuristicalStrategyTest.class.getClassLoader();
@@ -45,6 +42,8 @@ public class HeuristicalStrategyTest {
 	static Element alexandriaMainContent;
 	static Element carturestiMainContent;
 	static Element librisMainContent;
+
+	static Element cartepediaPage;
 	
 	InformationExtractionStrategy extractionStrategy = new HeuristicalStrategy();
 	
@@ -57,6 +56,9 @@ public class HeuristicalStrategyTest {
 		alexandriaMainContent = HtmlUtil.extractMainContent(Jsoup.parse(alexandriaBookPageFile, "UTF-8", alexandriaUrl));
 		carturestiMainContent = HtmlUtil.extractMainContent(Jsoup.parse(carturestiBookPageFile, "UTF-8", carturestiUrl));
 		librisMainContent = HtmlUtil.extractMainContent(Jsoup.parse(librisBookPageFile, "UTF-8", librisUrl));
+
+		cartepediaPage = Jsoup.connect("https://www.cartepedia.ro/carte/fictiune-literatura/literatura-contemporana/josh-malerman/bird-box-orbeste-58781.html")
+				.get();
 	}
 	
 
@@ -65,7 +67,7 @@ public class HeuristicalStrategyTest {
 		assertEquals("Inima omului", extractionStrategy.extractTitle(carturestiContent));
 		assertEquals("Medicina, nutritie si buna dispozitie - Simona Tivadar", extractionStrategy.extractTitle(librisContent));
 		assertEquals("Pentru o genealogie a globalizării", extractionStrategy.extractTitle(alexandriaContent));
-		
+		assertEquals("Bird Box. Orbește", extractionStrategy.extractTitle(cartepediaPage));
 	}
 	
 	@Test
@@ -73,6 +75,7 @@ public class HeuristicalStrategyTest {
 		assertEquals("Claude Karnoouh", extractionStrategy.extractAuthors(alexandriaMainContent));
 		assertEquals("Jon Kalman Stefansson", extractionStrategy.extractAuthors(carturestiMainContent));
 		assertEquals("Simona Tivadar", extractionStrategy.extractAuthors(librisMainContent));
+		assertEquals("Josh Malerman", extractionStrategy.extractAuthors(cartepediaPage));
 	}
 	
 	@Test
@@ -80,6 +83,7 @@ public class HeuristicalStrategyTest {
 		assertEquals("http://www.librariilealexandria.ro/image/cache/catalog/produse/carti/Filosofie%20politica/Pentru%20o%20genealogie%202017-480x480.jpg", extractionStrategy.extractImageUrl(alexandriaContent));
 		assertEquals("https://cdn.dc5.ro/img/prod/171704655-0.jpeg", extractionStrategy.extractImageUrl(carturestiContent));
 		assertEquals("https://www.libris.ro/img/pozeprod/59/1002/16/1250968.jpg", extractionStrategy.extractImageUrl(librisContent));
+		assertEquals("https://static.cartepedia.ro/image/228717/bird-box-orbeste-produs_imagine.jpg", extractionStrategy.extractImageUrl(cartepediaPage));
 	}
 
 	@Test
@@ -92,7 +96,7 @@ public class HeuristicalStrategyTest {
 		File inputFile = new File(resource.getFile());
 		Element htmlElement = Jsoup.parse(inputFile, "UTF-8");
 
-		Book book = extractionStrategy.extractBook(htmlElement, doc);
+		Book book = extractionStrategy.extractBook(doc);
 		assertNotNull(book.getIsbn());
 		assertNotEquals(book.getIsbn().trim(), "");
 	}
@@ -192,5 +196,18 @@ public class HeuristicalStrategyTest {
 		Elements productElements = extractionStrategy.extractBookCards(doc);
 		assertNotNull(productElements);
 		assertTrue(2000 <= productElements.size());
+	}
+
+	@Test
+	public void shouldExtractIsbn() throws IOException {
+		Document doc = Jsoup.connect("https://carturesti.ro/carte/noul-cod-civil-studii-si-comentarii-vol-al-iii-lea-p-i-art-1164-1649-239686").get();
+
+		Book book = extractionStrategy.extractBook(HtmlUtil.sanitizeHtml(doc));
+
+		assertEquals("9786066733632", book.getIsbn());
+
+
+		assertEquals("9786068564203", extractionStrategy.extractBook(HtmlUtil.sanitizeHtml(Jsoup.connect("http://www.librariilealexandria.ro/alexander-marguier-lux-lexicon").get())
+		).getIsbn());
 	}
 }

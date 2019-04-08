@@ -1,36 +1,37 @@
 package me.mircea.licenta.scraper;
 
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.net.SocketTimeoutException;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
-import me.mircea.licenta.core.crawl.db.model.Job;
-import me.mircea.licenta.core.crawl.db.model.JobStatus;
-import me.mircea.licenta.core.crawl.db.model.JobType;
+import com.google.common.base.Preconditions;
+import com.googlecode.objectify.Key;
+import com.googlecode.objectify.ObjectifyService;
+import com.googlecode.objectify.cmd.LoadType;
+import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
+import me.mircea.licenta.core.crawl.db.model.*;
+import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
+import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
+import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
+import org.bson.types.ObjectId;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.googlecode.objectify.Key;
-import com.googlecode.objectify.ObjectifyService;
-import com.googlecode.objectify.cmd.LoadType;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
-import me.mircea.licenta.core.crawl.db.model.Page;
-import me.mircea.licenta.products.db.model.Book;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
-import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
-import me.mircea.licenta.core.parser.utils.HtmlUtil;
-
-import static com.googlecode.objectify.ObjectifyService.*;
+import static com.googlecode.objectify.ObjectifyService.ofy;
+import static java.util.AbstractMap.SimpleImmutableEntry;
 
 /**
  * @brief This class is used to extract books from product description pages.
@@ -39,10 +40,21 @@ public class Scraper implements Runnable {
 	private static final Logger logger = LoggerFactory.getLogger(Scraper.class);
 
 	private final Job job;
-	private WebWrapper wrapper;
 	private final ExecutorService backgroundWorker;
+    private WebWrapper wrapper;
+
+
+    public Scraper(String seed, ObjectId continueJob) throws IOException {
+    	Preconditions.checkNotNull(seed);
+    	Preconditions.checkNotNull(continueJob);
+
+    	this.job = new Job(continueJob, seed, JobType.SCRAPE);
+		this.backgroundWorker = Executors.newSingleThreadExecutor();
+	}
+
 
 	public Scraper(String seed) throws IOException {
+        Preconditions.checkNotNull(seed);
 		this.job = new Job(seed, JobType.SCRAPE);
 		this.backgroundWorker = Executors.newSingleThreadExecutor();
 	}
@@ -66,13 +78,7 @@ public class Scraper implements Runnable {
 			if (this.job.getId().equals(page.getLastJob()))
 				break;
 
-			Optional<Document> optionalDoc = tryToGetPage(page.getUrl());
-			if (optionalDoc.isPresent()) {
-				Document pageContent = optionalDoc.get();
-
-				updateProductsDatabase(strategy, pageContent);
-				updateCrawlFrontier(page, pageContent);
-			}
+			propagateChanges(page, strategy);
 			TimeUnit.MILLISECONDS.sleep(job.getRobotRules().getCrawlDelay());
 		}
 
@@ -106,20 +112,35 @@ public class Scraper implements Runnable {
 		return Optional.ofNullable(bookPage);
 	}
 
-	private void updateProductsDatabase(InformationExtractionStrategy strategy, Document pageContent) {
-		backgroundWorker.submit(() -> {
-			AbstractMap.SimpleEntry<Book, PricePoint> bop = extractBookOffer(pageContent, strategy);
-			if (bop.getKey().getIsbn() == null)
-				return;
-			
-			ObjectifyService.run(() -> {
-				persistBookOfferPair(bop);
-				return null;
-			});
-		});
+	private void propagateChanges(Page page, InformationExtractionStrategy strategy) {
+	    Runnable work = () -> {
+            Optional<Document> possibleDocument = tryToGetPage(page.getUrl());
+            if (possibleDocument.isPresent()) {
+                Document htmlDocument = possibleDocument.get();
+
+                Optional<SimpleImmutableEntry<Book, PricePoint>> possiblePair = extractBookOffer(htmlDocument, strategy);
+				if (possiblePair.isPresent()) {
+					SimpleImmutableEntry<Book, PricePoint> bop = possiblePair.get();
+					if (bop.getKey().getIsbn() != null) {
+						ObjectifyService.run(() -> {
+							persistBookOfferPair(bop);
+							return null;
+						});
+					} else {
+						page.setType(PageType.JUNK);
+					}
+
+					updateCrawlFrontier(page, htmlDocument);
+				}
+            }
+        };
+	    backgroundWorker.submit(work);
 	}
 
 	private void updateCrawlFrontier(Page page, Document content) {
+		Preconditions.checkNotNull(page);
+		Preconditions.checkNotNull(content);
+
 		page.setTitle(content.title());
 		page.setUrl(HtmlUtil.getCanonicalUrl(content).orElse(page.getUrl()));
 		page.setRetrievedTime(Instant.now());
@@ -128,25 +149,39 @@ public class Scraper implements Runnable {
 		CrawlDatabaseManager.instance.upsertOnePage(page);
 	}
 
-	private AbstractMap.SimpleEntry<Book, PricePoint> extractBookOffer(Document page,
+	/**
+	 * @return pair of non-null book and pricepoint or empty
+	 */
+	private Optional<SimpleImmutableEntry<Book, PricePoint>> extractBookOffer(Document page,
 			InformationExtractionStrategy strategy) {
+		Preconditions.checkNotNull(page);
+		Preconditions.checkNotNull(strategy);
+
 		Book book = strategy.extractBook(page);
 		PricePoint offer = strategy.extractPricePoint(page, Locale.forLanguageTag("ro-ro"));
-		offer.setPageTitle(page.title());
-		
-		return new AbstractMap.SimpleEntry<>(book, offer);
+
+		if (book == null || offer == null) {
+			return Optional.empty();
+		} else {
+			// TODO: is this next line necessary?
+			offer.setPageTitle(page.title());
+			return Optional.of(new SimpleImmutableEntry<>(book, offer));
+		}
 	}
 
-	private void persistBookOfferPair(AbstractMap.SimpleEntry<Book, PricePoint> bookOfferPair) {
+	private void persistBookOfferPair(SimpleImmutableEntry<Book, PricePoint> bookOfferPair) {
 		persistBookOfferPair(bookOfferPair.getKey(), bookOfferPair.getValue());
 	}
 
 	private void persistBookOfferPair(Book book, PricePoint offer) {
-		book.setLatestRetrievedTime(offer.getRetrievedTime());
-		book.setLatestRetrievedPrice(offer.getNominalValue().divide(BigDecimal.valueOf(100)).toString());
+    	Preconditions.checkNotNull(book);
+    	Preconditions.checkNotNull(offer);
 
-		List<Book> persistedBooks = findBookByIsbn(book);
-		Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
+		book.setLatestRetrievedTime(offer.getRetrievedTime());
+		book.setLatestRetrievedPrice(offer.getNominalValue().setScale(2, BigDecimal.ROUND_CEILING).toString());
+
+        List<Book> persistedBooks = findBookByIsbn(book);
+        Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
 
 		book.getPricepoints().add(offerKey);
 		if (persistedBooks.isEmpty()) {

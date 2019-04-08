@@ -1,20 +1,5 @@
 package me.mircea.licenta.scraper.webservices;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
 import me.mircea.licenta.core.crawl.db.model.Job;
@@ -24,13 +9,19 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.mircea.licenta.products.db.ProductDatabaseManager;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Path("/jobs")
 public class JobResource {
 	private static final ExecutorService ASYNC_TASK_EXECUTOR = Executors.newCachedThreadPool();
 	private static final Logger LOGGER = LoggerFactory.getLogger(JobResource.class);
-	private static final ProductDatabaseManager DAO = ProductDatabaseManager.instance;
 
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
@@ -39,8 +30,6 @@ public class JobResource {
 
 		List<Job> jobList = new ArrayList<>();
 		iterable.forEach(jobList::add);
-
-		LOGGER.error(System.getProperty("env"));
 		return jobList;
 	}
 
@@ -56,7 +45,13 @@ public class JobResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response createScraperJob(ObjectNode scrapeRequest) {
 		try {
-			Scraper scraper = new Scraper(scrapeRequest.get("seed").asText());
+			Scraper scraper;
+			if (scrapeRequest.has("continue")) {
+				scraper = new Scraper(scrapeRequest.get("seed").asText(),
+						new ObjectId(scrapeRequest.get("continue").asText()));
+			} else {
+				scraper = new Scraper(scrapeRequest.get("seed").asText());
+			}
 
 			ASYNC_TASK_EXECUTOR.execute(scraper);
 			return Response.status(202)

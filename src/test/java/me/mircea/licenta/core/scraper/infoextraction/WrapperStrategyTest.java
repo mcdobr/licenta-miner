@@ -1,13 +1,8 @@
-package me.mircea.licenta.core.infoextraction;
+package me.mircea.licenta.core.scraper.infoextraction;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Locale;
-
+import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
 import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
 import me.mircea.licenta.scraper.infoextraction.RuleBasedStrategy;
@@ -21,9 +16,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import java.io.File;
+import java.io.IOException;
+import java.util.Locale;
+
+import static org.junit.Assert.*;
 
 public class WrapperStrategyTest {
 	static final Logger logger = LoggerFactory.getLogger(WrapperStrategyTest.class);

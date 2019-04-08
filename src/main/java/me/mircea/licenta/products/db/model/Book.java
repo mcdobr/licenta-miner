@@ -1,25 +1,17 @@
 package me.mircea.licenta.products.db.model;
 
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.base.Preconditions;
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
 import com.googlecode.objectify.annotation.Index;
+import me.mircea.licenta.core.parser.utils.EntityNormalizer;
 
-import me.mircea.licenta.core.parser.utils.Normalizer;
+import java.time.Instant;
+import java.util.*;
 
 @Entity
 public class Book {
-	private static final Logger logger = LoggerFactory.getLogger(Book.class);
-	
 	@Id
 	private Long id;
 	private String title;
@@ -56,26 +48,56 @@ public class Book {
 	}
 
 	private Book(Book persisted, Book addition) {
+		this(persisted, addition, Locale.forLanguageTag("ro"));
+	}
+
+	private Book(Book persisted, Book addition, Locale locale) {
 		this();
 		Preconditions.checkNotNull(persisted);
 		Preconditions.checkNotNull(addition);
-		
-		
+		Preconditions.checkNotNull(locale);
+
+		EntityNormalizer normalizer = new EntityNormalizer(locale);
+
 		this.id = persisted.id;
-		this.title = (String)Normalizer.getNotNullIfPossible(persisted.title, addition.title);
-		this.authors = Normalizer.getLongestOfNullableStrings(persisted.authors, addition.authors);
-		this.isbn = (String)Normalizer.getNotNullIfPossible(persisted.isbn, addition.isbn);
-		this.description = Normalizer.getLongestOfNullableStrings(persisted.description, addition.description);
+		this.title = (String) normalizer.getNotNullIfPossible(persisted.title, addition.title);
+		this.authors = normalizer.getLongestOfNullableStrings(persisted.authors, addition.authors);
+		this.isbn = (String) normalizer.getNotNullIfPossible(persisted.isbn, addition.isbn);
+		this.description = normalizer.getLongestOfNullableStrings(persisted.description, addition.description);
 		
 		this.pricepoints = persisted.pricepoints;	
 		this.pricepoints.addAll(addition.pricepoints);
 		
 		this.keywords = persisted.keywords;
 		this.keywords.addAll(addition.keywords);
-		
-		this.publisher = (String)Normalizer.getNotNullIfPossible(persisted.publisher, addition.publisher);
-		this.format = (String) Normalizer.getNotNullIfPossible(persisted.format, addition.format);
-		this.imageUrl = (String)Normalizer.getNotNullIfPossible(persisted.imageUrl, addition.imageUrl);
+		this.keywords = normalizer.splitKeywords(this.keywords);
+
+		this.publisher = (String) normalizer.getNotNullIfPossible(persisted.publisher, addition.publisher);
+		this.format = (String) normalizer.getNotNullIfPossible(persisted.format, addition.format);
+		this.imageUrl = (String) normalizer.getNotNullIfPossible(persisted.imageUrl, addition.imageUrl);
+
+		enforceLatestTime(persisted, addition);
+	}
+
+	private void enforceLatestTime(Book persisted, Book addition) {
+		Preconditions.checkNotNull(persisted);
+		Preconditions.checkNotNull(addition);
+
+		Book latestUpdated;
+		if (persisted.latestRetrievedTime == null && addition.latestRetrievedTime == null) {
+			latestUpdated = null;
+		} else if (persisted.latestRetrievedTime == null || addition.latestRetrievedTime == null) {
+			latestUpdated = persisted.latestRetrievedTime == null ? addition : persisted;
+		} else {
+			int compare = persisted.latestRetrievedTime.compareTo(addition.latestRetrievedTime);
+
+			latestUpdated = (compare <= 0) ? addition : persisted;
+		}
+
+		if (latestUpdated != null) {
+			this.latestRetrievedTime = latestUpdated.latestRetrievedTime;
+			this.latestRetrievedPrice = latestUpdated.latestRetrievedPrice;
+		}
 	}
 	
 	/**
@@ -85,6 +107,10 @@ public class Book {
 	 */
 	public static Book merge(Book persisted, Book addition) {
 		return new Book(persisted, addition);
+	}
+
+	public static Book merge(Book persisted, Book addition, Locale locale) {
+		return new Book(persisted, addition, locale);
 	}
 	
 	public Long getId() {
@@ -173,6 +199,10 @@ public class Book {
 
 	public void setLatestRetrievedTime(Instant latestRetrievedTime) {
 		this.latestRetrievedTime = latestRetrievedTime;
+	}
+
+	public void setLatestRetrievedTime(Long epochTime) {
+		this.latestRetrievedTime = Instant.ofEpochMilli(epochTime);
 	}
 
 	public String getLatestRetrievedPrice() {

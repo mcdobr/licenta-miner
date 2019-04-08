@@ -1,27 +1,20 @@
 package me.mircea.licenta.scraper.infoextraction;
 
-import java.net.MalformedURLException;
-import java.text.ParseException;
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
-
+import com.google.common.base.Preconditions;
+import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
+import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.products.db.model.PricePoint;
+import me.mircea.licenta.products.db.model.WebWrapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Preconditions;
-
-import me.mircea.licenta.products.db.model.Book;
-import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
+import java.net.MalformedURLException;
+import java.text.ParseException;
+import java.time.Instant;
+import java.util.*;
 
 public class WrapperStrategy implements InformationExtractionStrategy {
 	private static final Logger logger = LoggerFactory.getLogger(WrapperStrategy.class);
@@ -38,8 +31,10 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 		return doc.select(wrapper.getBookCardSelector());
 	}
 
+	//TODO: check this
 	@Override
-	public Book extractBook(Element htmlElement, Document bookPage) {
+	public Book extractBook(Document bookPage) {
+		//throw new UnsupportedOperationException("Not implemented yet");
 		Preconditions.checkNotNull(bookPage);
 
 		Book book = new Book();
@@ -55,11 +50,6 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 		book.setDescription(extractDescription(bookPage));
 
 		return book;
-	}
-	
-	@Override
-	public Book extractBook(Document bookPage) {
-		throw new UnsupportedOperationException();
 	}
 
 	@Override
