@@ -1,6 +1,5 @@
 package me.mircea.licenta.scraper.infoextraction;
 
-import com.google.common.base.Preconditions;
 import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
 import org.jsoup.nodes.Document;
@@ -9,18 +8,12 @@ import org.jsoup.select.Elements;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
-public class SemanticWebStrategy implements InformationExtractionStrategy {
-
-	@Override
-	public Elements extractBookCards(Document doc) {
-		Preconditions.checkNotNull(doc);
-		return doc.select("[itemtype$='Book'],[itemtype$='Book']");
-	}
-
+public class SemanticBookExtractor implements BookExtractor {
 
 	@Override
-	public Book extractBook(Document productPage) {
+	public Book extract(Document productPage) {
 		//throw new UnsupportedOperationException("Not implemented yet");
 		Elements propElements = productPage.select("[itemprop]");
 		
@@ -52,7 +45,12 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 	}
 
 	@Override
-	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
+	public PricePoint extractPricePoint(Element productPage, Locale locale) {
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Override
+	public String extractAvailability(Document productPage) {
 		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
@@ -62,7 +60,7 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 	}
 
 	@Override
-	public Map<String, String> extractAttributes(Element bookPage) {
+	public Map<String, String> extractAttributes(Element productPage) {
 		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
@@ -88,6 +86,11 @@ public class SemanticWebStrategy implements InformationExtractionStrategy {
 
 	@Override
 	public String extractImageUrl(Element htmlElement) {
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Override
+	public Set<String> extractKeywords(String... values) {
 		throw new UnsupportedOperationException("Not implemented yet");
 	}
 

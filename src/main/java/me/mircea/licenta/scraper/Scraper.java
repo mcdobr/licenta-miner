@@ -9,9 +9,8 @@ import me.mircea.licenta.core.crawl.db.model.*;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
-import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
+import me.mircea.licenta.scraper.infoextraction.HeuristicalBookExtractor;
+import me.mircea.licenta.scraper.infoextraction.ProductExtractor;
 import org.bson.types.ObjectId;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -41,7 +40,6 @@ public class Scraper implements Runnable {
 
 	private final Job job;
 	private final ExecutorService backgroundWorker;
-    private WebWrapper wrapper;
 
 
     public Scraper(String seed, ObjectId continueJob) throws IOException {
@@ -62,7 +60,7 @@ public class Scraper implements Runnable {
 	@Override
 	public void run() {
 		try {
-			InformationExtractionStrategy strategy = chooseStrategy();
+			ProductExtractor strategy = chooseStrategy();
 			scrape(strategy);
 		} catch (InterruptedException e) {
 			logger.warn("Thread interrupted {}", e);
@@ -70,7 +68,7 @@ public class Scraper implements Runnable {
 		}
 	}
 
-	public void scrape(InformationExtractionStrategy strategy) throws InterruptedException {
+	public void scrape(ProductExtractor strategy) throws InterruptedException {
 		CrawlDatabaseManager.instance.upsertJob(this.job);
 		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(job.getDomain());
 
@@ -89,9 +87,9 @@ public class Scraper implements Runnable {
 		shutdownExecutor();
 	}
 
-	private InformationExtractionStrategy chooseStrategy() {
+	private ProductExtractor chooseStrategy() {
 		// WebWrapper wrapper = getWrapperForSite(this.site);
-		return new HeuristicalStrategy();
+		return new HeuristicalBookExtractor();
 	}
 
 	private Optional<Document> tryToGetPage(String url) {
@@ -112,7 +110,7 @@ public class Scraper implements Runnable {
 		return Optional.ofNullable(bookPage);
 	}
 
-	private void propagateChanges(Page page, InformationExtractionStrategy strategy) {
+	private void propagateChanges(Page page, ProductExtractor strategy) {
 	    Runnable work = () -> {
             Optional<Document> possibleDocument = tryToGetPage(page.getUrl());
             if (possibleDocument.isPresent()) {
@@ -153,11 +151,11 @@ public class Scraper implements Runnable {
 	 * @return pair of non-null book and pricepoint or empty
 	 */
 	private Optional<SimpleImmutableEntry<Book, PricePoint>> extractBookOffer(Document page,
-			InformationExtractionStrategy strategy) {
+			ProductExtractor strategy) {
 		Preconditions.checkNotNull(page);
 		Preconditions.checkNotNull(strategy);
 
-		Book book = strategy.extractBook(page);
+		Book book = (Book)strategy.extract(page);
 		PricePoint offer = strategy.extractPricePoint(page, Locale.forLanguageTag("ro-ro"));
 
 		if (book == null || offer == null) {

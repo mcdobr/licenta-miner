@@ -9,7 +9,6 @@ import me.mircea.licenta.products.db.impl.CurrencyTranslatorFactory;
 import me.mircea.licenta.products.db.impl.InstantTranslatorFactory;
 import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -28,6 +27,5 @@ public class ObjectifyBootstrapper implements ServletContextListener {
 
         ObjectifyService.register(Book.class);
         ObjectifyService.register(PricePoint.class);
-        ObjectifyService.register(WebWrapper.class);
     }
 }

@@ -1,64 +1,56 @@
 package me.mircea.licenta.scraper.infoextraction;
 
-import com.google.common.base.Preconditions;
-import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
+import me.mircea.licenta.core.crawl.db.model.Wrapper;
 import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.MalformedURLException;
-import java.text.ParseException;
-import java.time.Instant;
 import java.util.*;
 
-public class WrapperStrategy implements InformationExtractionStrategy {
-	private static final Logger logger = LoggerFactory.getLogger(WrapperStrategy.class);
+public class WrapperBookExtractor implements BookExtractor {
+	private static final Logger logger = LoggerFactory.getLogger(WrapperBookExtractor.class);
+	private final Wrapper wrapper;
 
-	private WebWrapper wrapper;
-
-	public WrapperStrategy(WebWrapper wrapper) {
+	public WrapperBookExtractor(Wrapper wrapper) {
 		super();
 		this.wrapper = wrapper;
 	}
 
-	@Override
-	public Elements extractBookCards(Document doc) {
-		return doc.select(wrapper.getBookCardSelector());
-	}
-
 	//TODO: check this
 	@Override
-	public Book extractBook(Document bookPage) {
-		//throw new UnsupportedOperationException("Not implemented yet");
-		Preconditions.checkNotNull(bookPage);
+	public Book extract(Document productPage) {
+		throw new UnsupportedOperationException("Not implemented yet");
+		/*
+		Preconditions.checkNotNull(productPage);
 
 		Book book = new Book();
 		if (wrapper.getTitleSelector() != null)
-			book.setTitle(extractTitle(bookPage));
+			book.setTitle(extractTitle(productPage));
 
 		if (wrapper.getAttributeSelector() != null) {
-			Map<String, String> attributes = extractAttributes(bookPage);
+			Map<String, String> attributes = extractAttributes(productPage);
 		}
 
-		book.setAuthors(extractAuthors(bookPage));
+		book.setAuthors(extractAuthors(productPage));
 
-		book.setDescription(extractDescription(bookPage));
+		book.setDescription(extractDescription(productPage));
 
-		return book;
+		return book;*/
 	}
 
 	@Override
 	public String extractTitle(Element htmlElement) {
-		return htmlElement.selectFirst(wrapper.getTitleSelector()).text();
+		throw new UnsupportedOperationException("Not implemented yet");
+		//return htmlElement.selectFirst(wrapper.getTitleSelector()).text();
 	}
 
 	@Override
 	public String extractAuthors(Element htmlElement) {
+		throw new UnsupportedOperationException("Not implemented yet");
+		/*
 		if (wrapper.getAuthorsSelector() != null && !wrapper.getAuthorsSelector().isEmpty()) {
 			return String.join(",", htmlElement.select(wrapper.getAuthorsSelector()).eachText());
 		} else {
@@ -71,16 +63,24 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 				return attributes.get(authorAttribute.get());
 			else
 				return null;
-		}
+		}*/
 	}
 
 	@Override
 	public String extractImageUrl(Element htmlElement) {
+		throw new UnsupportedOperationException("Not implemented yet");
+		/*
 		Element imageUrlElement = htmlElement.selectFirst(wrapper.getImageLinkSelector());
 		if (imageUrlElement.hasAttr("src"))
 			return imageUrlElement.absUrl("src");
 		else
 			return imageUrlElement.attr("content");
+			*/
+	}
+
+	@Override
+	public Set<String> extractKeywords(String... values) {
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
@@ -90,7 +90,7 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 
 	@Override
 	public String extractPublisher(Element htmlElement) {
-		Map<String, String> attributes = extractAttributes(htmlElement);
+		/*Map<String, String> attributes = extractAttributes(htmlElement);
 
 		// Find any attribute that contains a word in publisherWordSet
 		Optional<String> publisherAttribute = attributes.keySet().stream()
@@ -101,7 +101,8 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 		if (publisherAttribute.isPresent())
 			return attributes.get(publisherAttribute.get());
 		else
-			return null;
+			return null;*/
+		throw new UnsupportedOperationException("Not implemented yet");
 		
 	}
 
@@ -111,31 +112,45 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 	}
 
 	@Override
-	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
-		String priceText = htmlElement.selectFirst(wrapper.getPriceSelector()).text();
+	public PricePoint extractPricePoint(Element productPage, Locale locale) {
+		/*
+		String priceText = productPage.selectFirst(wrapper.getPriceSelector()).text();
 
 		PricePoint pricePoint = null;
 		try {
-			pricePoint = PricePoint.valueOf(priceText, locale, Instant.now(), htmlElement.baseUri());
+			pricePoint = PricePoint.valueOf(priceText, locale, Instant.now(), productPage.baseUri());
 		} catch (ParseException e) {
 			logger.warn("Price tag was ill-formated {}", priceText);
 		} catch (MalformedURLException e) {
 			logger.warn("Url was malformed {}", e);
 		}
 		return pricePoint;
+		*/
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
-	public String extractDescription(Document bookPage) {
+	public String extractAvailability(Document productPage) {
+		/*
+		throw new UnsupportedOperationException("Not implemented yet");
+		*/
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Override
+	public String extractDescription(Document productPage) {
+		/*
 		if (wrapper.getDescriptionSelector() != null)
-			return bookPage.selectFirst(wrapper.getDescriptionSelector()).text();
+			return productPage.selectFirst(wrapper.getDescriptionSelector()).text();
 		else
-			return null;
+			return null;*/
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
-	public Map<String, String> extractAttributes(Element bookPage) {
-		Elements specs = bookPage.select(wrapper.getAttributeSelector());
+	public Map<String, String> extractAttributes(Element productPage) {
+		/*
+		Elements specs = productPage.select(wrapper.getAttributeSelector());
 		Map<String, String> attributes = new TreeMap<>();
 
 		Elements normalizedSpecs = new Elements();
@@ -156,5 +171,7 @@ public class WrapperStrategy implements InformationExtractionStrategy {
 		}
 
 		return attributes;
+		*/
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 }

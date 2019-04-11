@@ -27,7 +27,7 @@ public class PricePoint {
 	private Instant retrievedTime;
 	private String url;
 	private String pageTitle;
-	// private Boolean available;
+	private Boolean available;
 	@Index
 	private String site;
 
@@ -108,6 +108,8 @@ public class PricePoint {
 	public void setSite(String site) {
 		this.site = site;
 	}
+
+
 
 	@Override
 	public String toString() {

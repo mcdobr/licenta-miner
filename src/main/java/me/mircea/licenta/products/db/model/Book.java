@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.*;
 
 @Entity
-public class Book {
+public class Book implements Product {
 	@Id
 	private Long id;
 	private String title;
@@ -27,8 +27,13 @@ public class Book {
 	private String format;
 	private String imageUrl;
 
+	//private PricePoint bestCurrentOffer;
+
+
+	private String availability;
 	private Instant latestRetrievedTime;
 	private String latestRetrievedPrice;
+
 
 	public Book() {
 		this.pricepoints = new ArrayList<>();
@@ -36,8 +41,6 @@ public class Book {
 	}
 
 	public Book(Long id, String title, String description, String authors) {
-		super();
-
 		Preconditions.checkNotNull(authors);
 		this.id = id;
 		this.title = title;
@@ -76,10 +79,10 @@ public class Book {
 		this.format = (String) normalizer.getNotNullIfPossible(persisted.format, addition.format);
 		this.imageUrl = (String) normalizer.getNotNullIfPossible(persisted.imageUrl, addition.imageUrl);
 
-		enforceLatestTime(persisted, addition);
+		enforceLatestInfo(persisted, addition);
 	}
 
-	private void enforceLatestTime(Book persisted, Book addition) {
+	private void enforceLatestInfo(Book persisted, Book addition) {
 		Preconditions.checkNotNull(persisted);
 		Preconditions.checkNotNull(addition);
 
@@ -97,6 +100,7 @@ public class Book {
 		if (latestUpdated != null) {
 			this.latestRetrievedTime = latestUpdated.latestRetrievedTime;
 			this.latestRetrievedPrice = latestUpdated.latestRetrievedPrice;
+			this.availability = latestUpdated.availability;
 		}
 	}
 	
@@ -211,6 +215,14 @@ public class Book {
 
 	public void setLatestRetrievedPrice(String latestRetrievedPrice) {
 		this.latestRetrievedPrice = latestRetrievedPrice;
+	}
+
+	public String getAvailability() {
+		return availability;
+	}
+
+	public void setAvailability(String availability) {
+		this.availability = availability;
 	}
 
 	@Override

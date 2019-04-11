@@ -1,13 +1,13 @@
 package me.mircea.licenta.scraper.infoextraction;
 
 import com.google.common.base.Preconditions;
+import me.mircea.licenta.core.crawl.db.model.Wrapper;
 import me.mircea.licenta.core.parser.utils.CssUtil;
 import me.mircea.licenta.core.parser.utils.EntityNormalizer;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 import me.mircea.licenta.core.parser.utils.TextContentAnalyzer;
 import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -23,43 +23,36 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class HeuristicalStrategy implements RuleBasedStrategy {
-	private static final Logger LOGGER = LoggerFactory.getLogger(HeuristicalStrategy.class);
+public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator {
+	private static final Logger LOGGER = LoggerFactory.getLogger(HeuristicalBookExtractor.class);
 	private static final String ISBN_PATTERN_STRING = "(?=[-\\d\\ xX]{10,})\\d+[-\\ ]?\\d+[-\\ ]?\\d+[-\\ ]?\\d*[-\\ ]?[\\dxX]";
 	private static final Pattern ISBN_PATTERN = Pattern.compile(ISBN_PATTERN_STRING);
 	private static final String IMAGE_WITH_LINK_SELECTOR = "[class*='produ']:has(img):has(a)";
 	private static final String PRODUCT_CARD_SELECTOR = CssUtil.makeLeafOfSelector(IMAGE_WITH_LINK_SELECTOR);
-	
-	@Override
-	public Elements extractBookCards(Document doc) {
-		Preconditions.checkNotNull(doc);
-		return doc.select(PRODUCT_CARD_SELECTOR);
-	}
 
 	@Override
-	public Book extractBook(Document bookPage) {
-		Preconditions.checkNotNull(bookPage);
+	public Book extract(Document productPage) {
+		Preconditions.checkNotNull(productPage);
 
-		//String language = bookPage.selectFirst("html").attr("lang");
+		// TODO: fix this hardcoding
 		String language = "ro";
-		if (language == null)
-			language = "ro";
-
 		Locale locale = Locale.forLanguageTag(language);
 
 		Book book = new Book();
-		book.setTitle(extractTitle(bookPage));
-		book.setImageUrl(extractImageUrl(bookPage));
-		book.setDescription(extractDescription(bookPage));
-		
-		final Map<String, String> bookAttributes = extractAttributes(bookPage);
-		book.setAuthors(extractAuthors(bookPage));
-		book.setIsbn(extractIsbn(bookPage));
-		book.setFormat(extractFormat(bookPage));
-		book.setPublisher(extractPublisher(bookPage));
+		book.setTitle(extractTitle(productPage));
+		book.setImageUrl(extractImageUrl(productPage));
+		book.setDescription(extractDescription(productPage));
+		book.setAvailability(extractAvailability(productPage));
 
+		book.setAuthors(extractAuthors(productPage));
+		book.setIsbn(extractIsbn(productPage));
+		book.setFormat(extractFormat(productPage));
+		book.setPublisher(extractPublisher(productPage));
 
 		EntityNormalizer norm = new EntityNormalizer(locale);
+
+		//book.setKeywords(extractKeywords());
+		// TODO: refactor this
 		Collection<String> relevantValuesForKeywords = new ArrayList<>(Arrays.asList(book.getTitle(),
 				book.getAuthors(),
 				book.getIsbn(),
@@ -100,21 +93,6 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		}
 		
 		return text;
-	}
-	
-	@Override
-	public String extractImageUrl(Element htmlElement) {
-		Element ogImage = htmlElement.selectFirst("meta[property*='image']");
-		if (ogImage != null)
-			return ogImage.attr("content");
-		
-		Elements imagesWithAlt = htmlElement.select("img[alt]");
-		imagesWithAlt.removeAll(htmlElement.select("img[alt='']"));
-		
-		if (!imagesWithAlt.isEmpty())
-			return imagesWithAlt.first().absUrl("src");
-		
-		return null;
 	}
 	
 	@Override
@@ -163,19 +141,19 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	}
 	
 	@Override
-	public PricePoint extractPricePoint(Element htmlElement, Locale locale) {
-		Preconditions.checkNotNull(htmlElement);
+	public PricePoint extractPricePoint(Element productPage, Locale locale) {
+		Preconditions.checkNotNull(productPage);
 
 		PricePoint pricePoint = null;
 		try {
 			// TODO: be locale sensitive
-			Element priceElement = htmlElement.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)");
+			Element priceElement = productPage.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)," + CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet));
 			if (priceElement != null) {
 				String priceTag = priceElement.text().replaceAll(".*:", "").trim();
-				String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
+				String url = HtmlUtil.getCanonicalUrl(productPage).orElse(productPage.baseUri());
 				pricePoint = PricePoint.valueOf(priceTag, locale, Instant.now(), url);
-				if (htmlElement instanceof Document)
-					pricePoint.setPageTitle(((Document) htmlElement).title());
+				if (productPage instanceof Document)
+					pricePoint.setPageTitle(((Document) productPage).title());
 			}
 		} catch (ParseException e) {
 			LOGGER.warn("Price tag was ill-formated {}, which resulted in {}", e);
@@ -187,18 +165,54 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 	}
 
 	@Override
-	public String extractDescription(Document bookPage) {
-		Preconditions.checkNotNull(bookPage);
-		Element descriptionElement = bookPage.select("[class*='descri']").first();
+	public String extractAvailability(Document productPage) {
+		Element stockElement = productPage.selectFirst("[class*='stoc'],[id*='stoc']");
+		if (stockElement == null)
+			return null;
+
+		String text = stockElement.text().toLowerCase();
+		if (text.contains("in stoc") || text.contains("în stoc") || text.contains("limitat")) {
+			return "available";
+		} else if (text.contains("indisponibil") || text.contains("comanda")) {
+			return "unavailable";
+		} else {
+			return null;
+		}
+	}
+
+	@Override
+	public String extractDescription(Document productPage) {
+		Preconditions.checkNotNull(productPage);
+		Element descriptionElement = productPage.select("[class*='descri']").first();
 		return (descriptionElement != null) ? descriptionElement.text() : null;
 	}
 
 	@Override
-	public Map<String, String> extractAttributes(Element bookPage) {
-		Preconditions.checkNotNull(bookPage);
+	public String extractImageUrl(Element htmlElement) {
+		Element ogImage = htmlElement.selectFirst("meta[property*='image']");
+		if (ogImage != null)
+			return ogImage.attr("content");
+
+		Elements imagesWithAlt = htmlElement.select("img[alt]");
+		imagesWithAlt.removeAll(htmlElement.select("img[alt='']"));
+
+		if (!imagesWithAlt.isEmpty())
+			return imagesWithAlt.first().absUrl("src");
+
+		return null;
+	}
+
+	@Override
+	public Set<String> extractKeywords(String... values) {
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Override
+	public Map<String, String> extractAttributes(Element productPage) {
+		Preconditions.checkNotNull(productPage);
 
 		Map<String, String> bookAttributes = new TreeMap<>();
-		Matcher isbnMatcher = ISBN_PATTERN.matcher(bookPage.text());
+		Matcher isbnMatcher = ISBN_PATTERN.matcher(productPage.text());
 		while (isbnMatcher.find()) {
 			String matchedText = isbnMatcher.group();
 			String isbn = matchedText.replaceAll("[\\s-]", "");
@@ -206,7 +220,7 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 				LOGGER.debug("Found isbn {}", isbn);
 
 				String findIsbnElement = String.format("*:contains(%s)", matchedText);
-				Element isbnElement = bookPage.select(findIsbnElement).last();
+				Element isbnElement = productPage.select(findIsbnElement).last();
 
 				if (isbnElement.text().trim().equals(isbn))
 					isbnElement = isbnElement.parent();
@@ -229,32 +243,36 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 
 		return bookAttributes;
 	}
+
+
 	//TODO: refactor this
 	@Override
-	public WebWrapper generateWrapper(Element bookPage, Elements additionals) {
+	public Wrapper generateWrapper(Element productPage, Elements additionals) {
+		throw new UnsupportedOperationException("not implemented yet");
+		/*
 		WebWrapper wrapper = new WebWrapper();
 
 		String titleSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.titleWordSet);
-		Element titleElement = bookPage.select(titleSelector).select(String.format(":not(:has(%s))", titleSelector))
+		Element titleElement = productPage.select(titleSelector).select(String.format(":not(:has(%s))", titleSelector))
 				.first();
 		if (titleElement != null)
 			wrapper.setTitleSelector(generateCssSelectorFor(new Elements(titleElement)));
 
 		String authorsSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.authorWordSet);
-		Element authorsElement = bookPage.select(authorsSelector).first();
+		Element authorsElement = productPage.select(authorsSelector).first();
 		if (authorsElement != null)
 			wrapper.setAuthorsSelector(generateCssSelectorFor(new Elements(authorsElement)));
 		
 		String priceSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.priceWordSet);
-		Element priceElement = bookPage.selectFirst(priceSelector);
+		Element priceElement = productPage.selectFirst(priceSelector);
 		//TODO: handle currency
 		String priceRegexSelector = ":matchesOwn(lei)";
-		Element priceRegexElement = bookPage.selectFirst(priceRegexSelector);
+		Element priceRegexElement = productPage.selectFirst(priceRegexSelector);
 		if (!priceRegexElement.equals(priceElement)) {
 			String priceHtml = priceElement.html();
 			String priceRegexHtml = priceRegexElement.html();
 
-			String str = bookPage.outerHtml();
+			String str = productPage.outerHtml();
 			
 			int indexOfPrice = str.indexOf(priceHtml);
 			int indexOfRegex = str.indexOf(priceRegexHtml);
@@ -267,7 +285,7 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 			wrapper.setPriceSelector(generateCssSelectorFor(new Elements(priceElement)));
 
 		String isbnSelector = ":matchesOwn((?=[-\\d\\ xX]{10,})\\d+[-\\ ]?\\d+[-\\ ]?\\d+[-\\ ]?\\d*[-\\ ]?[\\dxX])";
-		Element isbnElement = bookPage.select(isbnSelector).first();
+		Element isbnElement = productPage.select(isbnSelector).first();
 		Element parent = isbnElement.parent();
 
 		// TODO: refine this: If the book code element has no class then those are
@@ -285,7 +303,7 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 		wrapper.setImageLinkSelector("img[alt]:not(img[alt='']),meta[property*='image']");
 
 		String descriptionSelector = CssUtil.makeClassOrIdContains(TextContentAnalyzer.descriptionWordSet);
-		Element descriptionElement = bookPage.select(descriptionSelector).first();
+		Element descriptionElement = productPage.select(descriptionSelector).first();
 		if (descriptionElement != null)
 			wrapper.setDescriptionSelector(generateCssSelectorFor(new Elements(descriptionElement)));
 
@@ -297,7 +315,7 @@ public class HeuristicalStrategy implements RuleBasedStrategy {
 			wrapper.setBookCardSelector(generateCssSelectorFor(bookCards));
 		}
 
-		return wrapper;
+		return wrapper;*/
 	}
 
 	//TODO: refactor this

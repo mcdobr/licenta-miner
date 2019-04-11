@@ -3,14 +3,11 @@ package me.mircea.licenta.core.scraper.infoextraction;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
-import me.mircea.licenta.products.db.model.WebWrapper;
-import me.mircea.licenta.scraper.infoextraction.HeuristicalStrategy;
-import me.mircea.licenta.scraper.infoextraction.InformationExtractionStrategy;
-import me.mircea.licenta.scraper.infoextraction.WrapperGenerationStrategy;
+import me.mircea.licenta.scraper.infoextraction.BookExtractor;
+import me.mircea.licenta.scraper.infoextraction.HeuristicalBookExtractor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -23,9 +20,9 @@ import java.util.Locale;
 
 import static org.junit.Assert.*;
 
-public class HeuristicalStrategyTest {
-	private static final ClassLoader classLoader = HeuristicalStrategyTest.class.getClassLoader();
-	private static final Logger logger = LoggerFactory.getLogger(HeuristicalStrategyTest.class);
+public class HeuristicalBookExtractorTest {
+	private static final ClassLoader classLoader = HeuristicalBookExtractorTest.class.getClassLoader();
+	private static final Logger logger = LoggerFactory.getLogger(HeuristicalBookExtractorTest.class);
 
 	static final File alexandriaBookPageFile = new File(classLoader.getResource("bookPageAlexandria.html").getFile());
 	static final File carturestiBookPageFile = new File(classLoader.getResource("bookPageCarturesti.html").getFile());
@@ -45,7 +42,7 @@ public class HeuristicalStrategyTest {
 
 	static Element cartepediaPage;
 	
-	InformationExtractionStrategy extractionStrategy = new HeuristicalStrategy();
+	BookExtractor extractionStrategy = new HeuristicalBookExtractor();
 	
 	@Before
 	public void setUp() throws IOException {
@@ -96,7 +93,7 @@ public class HeuristicalStrategyTest {
 		File inputFile = new File(resource.getFile());
 		Element htmlElement = Jsoup.parse(inputFile, "UTF-8");
 
-		Book book = extractionStrategy.extractBook(doc);
+		Book book = (Book)extractionStrategy.extract(doc);
 		assertNotNull(book.getIsbn());
 		assertNotEquals(book.getIsbn().trim(), "");
 	}
@@ -128,12 +125,12 @@ public class HeuristicalStrategyTest {
 		assertEquals(32.55, price.getNominalValue().doubleValue(), 1e-5);
 	}
 	
-	
+	/*
 	@Test
 	public void shouldCreateAppropriateWrapperOnAlexandria() throws IOException {
 		String url = "http://www.librariilealexandria.ro/elita-din-umbra";
 		Element mainContent = HtmlUtil.extractMainContent(Jsoup.connect(url).get());
-		WrapperGenerationStrategy strategy = new HeuristicalStrategy();
+		WrapperGenerator strategy = new HeuristicalBookExtractor();
 		WebWrapper wrapper = strategy.generateWrapper(mainContent);
 
 		logger.info("Alexandria: {}", wrapper.toString());
@@ -155,8 +152,8 @@ public class HeuristicalStrategyTest {
 		Elements additionals = new Elements();
 		additionals.add(Jsoup.parse(inputFile, "UTF-8"));
 
-		WrapperGenerationStrategy strategy = new HeuristicalStrategy();
-		WebWrapper wrapper = strategy.generateWrapper(mainContent, additionals);
+		WrapperGenerator strategy = new HeuristicalBookExtractor();
+		Wrapper wrapper = strategy.generateWrapper(mainContent, additionals);
 
 		logger.info("Carturesti: {}", wrapper.toString());
 
@@ -174,40 +171,25 @@ public class HeuristicalStrategyTest {
 		
 		// TODO: add mock grid page to extract book cards
 		
-		WrapperGenerationStrategy strategy = new HeuristicalStrategy();
-		WebWrapper wrapper = strategy.generateWrapper(mainContent);
+		WrapperGenerator strategy = new HeuristicalBookExtractor();
+		Wrapper wrapper = strategy.generateWrapper(mainContent);
 
 		logger.info("Libris: {}", wrapper.toString());
 		assertEquals("#product_title", wrapper.getTitleSelector());
 		assertEquals("#price", wrapper.getPriceSelector());
 		assertEquals("#text_container>p", wrapper.getAttributeSelector());
-	}
-	
-	@Test
-	public void shouldExtractElementsFromDownloadedMultiPage() throws IOException {
-		final URL resource = classLoader.getResource("bookGridAlexandria.html");
-		assertNotNull(resource);
-
-		File inputFile = new File(resource.getFile());
-		assertTrue(inputFile.exists());
-
-		Document doc = Jsoup.parse(inputFile, "UTF-8", "http://www.librariilealexandria.ro/carte");
-
-		Elements productElements = extractionStrategy.extractBookCards(doc);
-		assertNotNull(productElements);
-		assertTrue(2000 <= productElements.size());
-	}
+	} */
 
 	@Test
 	public void shouldExtractIsbn() throws IOException {
 		Document doc = Jsoup.connect("https://carturesti.ro/carte/noul-cod-civil-studii-si-comentarii-vol-al-iii-lea-p-i-art-1164-1649-239686").get();
 
-		Book book = extractionStrategy.extractBook(HtmlUtil.sanitizeHtml(doc));
+		Book book = (Book)extractionStrategy.extract(HtmlUtil.sanitizeHtml(doc));
 
 		assertEquals("9786066733632", book.getIsbn());
 
 
-		assertEquals("9786068564203", extractionStrategy.extractBook(HtmlUtil.sanitizeHtml(Jsoup.connect("http://www.librariilealexandria.ro/alexander-marguier-lux-lexicon").get())
-		).getIsbn());
+		//assertEquals("9786068564203", (Book)(extractionStrategy.extract(HtmlUtil.sanitizeHtml(Jsoup.connect("http://www.librariilealexandria.ro/alexander-marguier-lux-lexicon").get())
+		//).getIsbn());
 	}
 }
