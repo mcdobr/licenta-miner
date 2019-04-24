@@ -5,6 +5,8 @@ import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
 import com.googlecode.objectify.annotation.Index;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
@@ -27,7 +29,7 @@ public class PricePoint {
 	private Instant retrievedTime;
 	private String url;
 	private String pageTitle;
-	private Boolean available;
+	private Boolean availability;
 	@Index
 	private String site;
 
@@ -101,6 +103,14 @@ public class PricePoint {
 		this.pageTitle = pageTitle;
 	}
 
+	public Boolean getAvailability() {
+		return availability;
+	}
+
+	public void setAvailability(Boolean availability) {
+		this.availability = availability;
+	}
+
 	public String getSite() {
 		return site;
 	}
@@ -108,8 +118,6 @@ public class PricePoint {
 	public void setSite(String site) {
 		this.site = site;
 	}
-
-
 
 	@Override
 	public String toString() {
@@ -209,12 +217,32 @@ public class PricePoint {
 		return new PricePoint(null, nominalValue, Currency.getInstance(locale), retrievedTime, url);
 	}
 
+	// TODO: refactor remove duplication
+	public static PricePoint valueOf(String price, Locale locale, Element htmlElement)
+			throws ParseException, MalformedURLException {
+		price = normalizeStringWithLocale(price, locale);
+
+		final NumberFormat noFormat = NumberFormat.getNumberInstance(locale);
+		if (noFormat instanceof DecimalFormat) {
+			((DecimalFormat) noFormat).setParseBigDecimal(true);
+		}
+
+		BigDecimal nominalValue = (BigDecimal) noFormat.parse(price);
+		if (!price.matches(".*[.,].*") && nominalValue.stripTrailingZeros().scale() <= 0
+				&& nominalValue.compareTo(BigDecimal.valueOf(100)) >= 1)
+			nominalValue = nominalValue.divide(BigDecimal.valueOf(100));
+
+		String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
+		PricePoint pricePoint =  new PricePoint(null, nominalValue, Currency.getInstance(locale), Instant.now(), url);
+
+		//TODO: add this to constructor
+		if (htmlElement instanceof Document)
+			pricePoint.setPageTitle(((Document) htmlElement).title());
+		return pricePoint;
+	}
+
 	/**
-	 * Does the actual fixing of the price tag.
-	 * 
-	 * @param price
-	 * @param locale
-	 * @return
+	 * @brief Does the actual fixing of the price tag.
 	 */
 	private static String normalizeStringWithLocale(String price, Locale locale) {
 		DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(locale);

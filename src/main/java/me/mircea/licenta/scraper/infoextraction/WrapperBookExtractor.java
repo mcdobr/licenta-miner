@@ -1,17 +1,21 @@
 package me.mircea.licenta.scraper.infoextraction;
 
+import me.mircea.licenta.core.crawl.db.model.Selector;
 import me.mircea.licenta.core.crawl.db.model.Wrapper;
-import me.mircea.licenta.products.db.model.Book;
+import me.mircea.licenta.core.parser.utils.TextValueCoercer;
 import me.mircea.licenta.products.db.model.PricePoint;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.MalformedURLException;
+import java.text.ParseException;
 import java.util.*;
 
 public class WrapperBookExtractor implements BookExtractor {
-	private static final Logger logger = LoggerFactory.getLogger(WrapperBookExtractor.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(WrapperBookExtractor.class);
 	private final Wrapper wrapper;
 
 	public WrapperBookExtractor(Wrapper wrapper) {
@@ -19,63 +23,145 @@ public class WrapperBookExtractor implements BookExtractor {
 		this.wrapper = wrapper;
 	}
 
-	//TODO: check this
-	@Override
-	public Book extract(Document productPage) {
-		throw new UnsupportedOperationException("Not implemented yet");
-		/*
-		Preconditions.checkNotNull(productPage);
-
-		Book book = new Book();
-		if (wrapper.getTitleSelector() != null)
-			book.setTitle(extractTitle(productPage));
-
-		if (wrapper.getAttributeSelector() != null) {
-			Map<String, String> attributes = extractAttributes(productPage);
-		}
-
-		book.setAuthors(extractAuthors(productPage));
-
-		book.setDescription(extractDescription(productPage));
-
-		return book;*/
-	}
-
 	@Override
 	public String extractTitle(Element htmlElement) {
-		throw new UnsupportedOperationException("Not implemented yet");
-		//return htmlElement.selectFirst(wrapper.getTitleSelector()).text();
+		return extractSingleValueWithSelectorName(htmlElement, "title");
+	}
+
+	// TODO: fix coercion duplication
+	@Override
+	public String extractAuthors(Element htmlElement, Map<String, String> attributes) {
+		String authors = null;
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName("authors");
+		if (possibleSelector.isPresent()) {
+			Selector selector = possibleSelector.get();
+			Element element = htmlElement.selectFirst(selector.getQuery());
+			if (element != null)
+				authors = element.text();
+		} else {
+			Optional<String> authorAttribute = attributes.keySet().stream()
+					.filter(TextValueCoercer.authorWordSet::contains)
+					.findFirst();
+			if (authorAttribute.isPresent())
+				authors = attributes.get(authorAttribute.get());
+		}
+
+		return authors;
+	}
+
+	// TODO: fix coercion duplication
+	@Override
+	public String extractIsbn(Element htmlElement, Map<String, String> attributes) {
+		String isbn = null;
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName("isbn");
+		if (possibleSelector.isPresent()) {
+			Selector selector = possibleSelector.get();
+			Element isbnElement = htmlElement.selectFirst(selector.getQuery());
+			if (isbnElement != null)
+				isbn = isbnElement.text();
+		} else {
+			Optional<String> isbnAttribute = attributes.keySet()
+					.stream()
+					.filter(key -> !Collections.disjoint(TextValueCoercer.codeWordSet, Arrays.asList(key.split("[\\s|,.;:]"))))
+					.findFirst();
+			if (isbnAttribute.isPresent())
+				isbn = attributes.get(isbnAttribute.get()).replaceAll("^[ a-zA-Z]*", "");
+		}
+		return isbn;
+	}
+
+	// TODO: fix coercion duplication
+	@Override
+	public String extractFormat(Element htmlElement, Map<String, String> attributes) {
+		String format = null;
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName("format");
+		if (possibleSelector.isPresent()) {
+			//TODO: finish this
+		} else {
+			Optional<Map.Entry<String, String>> formatAttribute = attributes.entrySet().stream()
+					.filter(entry -> TextValueCoercer.formatsWordSet.containsKey(entry.getValue()))
+					.findFirst();
+			if (formatAttribute.isPresent())
+				format = TextValueCoercer.formatsWordSet.get(formatAttribute.get().getValue());
+		}
+		return format;
+
 	}
 
 	@Override
-	public String extractAuthors(Element htmlElement) {
-		throw new UnsupportedOperationException("Not implemented yet");
-		/*
-		if (wrapper.getAuthorsSelector() != null && !wrapper.getAuthorsSelector().isEmpty()) {
-			return String.join(",", htmlElement.select(wrapper.getAuthorsSelector()).eachText());
+	public String extractPublisher(Element htmlElement, Map<String, String> attributes) {
+		String publisher = null;
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName("format");
+		if (possibleSelector.isPresent()) {
+			//TODO: finish this
 		} else {
-			Map<String, String> attributes = extractAttributes(htmlElement);
-			Optional<String> authorAttribute = attributes.keySet().stream()
-					.filter(TextContentAnalyzer.authorWordSet::contains)
+			Optional<Map.Entry<String, String>> publisherAttribute = attributes.entrySet()
+					.stream()
+					.filter(entry -> !Collections.disjoint(Arrays.asList(entry.getKey().split(TextValueCoercer.SEPARATORS)), TextValueCoercer.publisherWordSet))
 					.findFirst();
-			
-			if (authorAttribute.isPresent())
-				return attributes.get(authorAttribute.get());
-			else
-				return null;
-		}*/
+
+			if (publisherAttribute.isPresent())
+				publisher = publisherAttribute.get().getValue();
+		}
+		return publisher;
+	}
+
+	@Override
+	public PricePoint extractPricePoint(Element productPage, Locale locale) {
+		PricePoint price = null;
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName("pricepoint");
+		if (possibleSelector.isPresent()) {
+			Selector selector = possibleSelector.get();
+			Element priceTagElement = productPage.selectFirst(selector.getQuery());
+
+			if (priceTagElement != null) {
+				String priceTag = priceTagElement.text();
+
+				try {
+					price = PricePoint.valueOf(priceTag, locale, productPage);
+
+					// TODO: link this
+					String availabilityStr = extractAvailability((Document) productPage);
+					Boolean availability = null;
+					price.setAvailability(availability);
+				} catch (ParseException e) {
+					LOGGER.warn("Price tag was ill-formated {}, which resulted in {}", e);
+				} catch (MalformedURLException e) {
+					LOGGER.warn("Url was malformed {}", e);
+				}
+			}
+		}
+
+		return price;
+	}
+
+	@Override
+	public Map<String, String> extractAttributes(Element productPage) {
+		Map<String, String> attributes = new HashMap<>();
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName("attributes");
+		if (possibleSelector.isPresent()) {
+			Selector selector = possibleSelector.get();
+			Elements attributeElements = productPage.select(selector.getQuery());
+
+			attributes = TextValueCoercer.splitAttributes(attributeElements);
+		}
+
+		return attributes;
+	}
+
+	@Override
+	public String extractAvailability(Document productPage) {
+		return extractSingleValueWithSelectorName(productPage, "availability");
+	}
+
+	@Override
+	public String extractDescription(Document productPage) {
+		return extractSingleValueWithSelectorName(productPage, "description");
 	}
 
 	@Override
 	public String extractImageUrl(Element htmlElement) {
-		throw new UnsupportedOperationException("Not implemented yet");
-		/*
-		Element imageUrlElement = htmlElement.selectFirst(wrapper.getImageLinkSelector());
-		if (imageUrlElement.hasAttr("src"))
-			return imageUrlElement.absUrl("src");
-		else
-			return imageUrlElement.attr("content");
-			*/
+		return extractSingleValueWithSelectorName(htmlElement, "image");
 	}
 
 	@Override
@@ -83,95 +169,31 @@ public class WrapperBookExtractor implements BookExtractor {
 		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
-	@Override
-	public String extractIsbn(Element htmlElement) {
-		throw new UnsupportedOperationException("Not implemented yet");
-	}
 
-	@Override
-	public String extractPublisher(Element htmlElement) {
-		/*Map<String, String> attributes = extractAttributes(htmlElement);
+	private String extractSingleValueWithSelectorName(Element htmlElement, String selectorName) {
+		String result = null;
+		Optional<Selector> possibleSelector = wrapper.getSelectorByName(selectorName);
+		if (possibleSelector.isPresent()) {
+			Selector selector = possibleSelector.get();
+			Element element = htmlElement.selectFirst(selector.getQuery());
 
-		// Find any attribute that contains a word in publisherWordSet
-		Optional<String> publisherAttribute = attributes.keySet().stream()
-			.filter(key -> !Collections.disjoint(Arrays.asList(key.split(" ")),
-												TextContentAnalyzer.publisherWordSet))
-			.findFirst();
-		
-		if (publisherAttribute.isPresent())
-			return attributes.get(publisherAttribute.get());
-		else
-			return null;*/
-		throw new UnsupportedOperationException("Not implemented yet");
-		
-	}
-
-	@Override
-	public String extractFormat(Element htmlElement) {
-		throw new UnsupportedOperationException("Not implemented yet");
-	}
-
-	@Override
-	public PricePoint extractPricePoint(Element productPage, Locale locale) {
-		/*
-		String priceText = productPage.selectFirst(wrapper.getPriceSelector()).text();
-
-		PricePoint pricePoint = null;
-		try {
-			pricePoint = PricePoint.valueOf(priceText, locale, Instant.now(), productPage.baseUri());
-		} catch (ParseException e) {
-			logger.warn("Price tag was ill-formated {}", priceText);
-		} catch (MalformedURLException e) {
-			logger.warn("Url was malformed {}", e);
+			if (element != null) {
+				switch (selector.getType()) {
+					case TEXT:
+						result = element.text();
+						break;
+					case LINK:
+						result = element.absUrl("href");
+						break;
+					case IMAGE:
+						result = element.absUrl("src");
+						break;
+					case ATTRIBUTE:
+						result = element.attr(selector.getTarget());
+						break;
+				}
+			}
 		}
-		return pricePoint;
-		*/
-		throw new UnsupportedOperationException("Not implemented yet");
-	}
-
-	@Override
-	public String extractAvailability(Document productPage) {
-		/*
-		throw new UnsupportedOperationException("Not implemented yet");
-		*/
-		throw new UnsupportedOperationException("Not implemented yet");
-	}
-
-	@Override
-	public String extractDescription(Document productPage) {
-		/*
-		if (wrapper.getDescriptionSelector() != null)
-			return productPage.selectFirst(wrapper.getDescriptionSelector()).text();
-		else
-			return null;*/
-		throw new UnsupportedOperationException("Not implemented yet");
-	}
-
-	@Override
-	public Map<String, String> extractAttributes(Element productPage) {
-		/*
-		Elements specs = productPage.select(wrapper.getAttributeSelector());
-		Map<String, String> attributes = new TreeMap<>();
-
-		Elements normalizedSpecs = new Elements();
-		for (Element spec : specs) {
-			if (spec.tagName().equals("ul"))
-				normalizedSpecs.addAll(spec.children());
-			else
-				normalizedSpecs.add(spec);
-		}
-		
-		for (Element spec : normalizedSpecs) {
-			
-			String[] keyValuePair = spec.text().split(":", 2);
-			if (keyValuePair.length > 1)
-				attributes.put(keyValuePair[0].trim(), keyValuePair[1].trim());
-			else
-				attributes.put(keyValuePair[0], keyValuePair[0]);
-		}
-
-		return attributes;
-		*/
-		throw new UnsupportedOperationException("Not implemented yet");
+		return result;
 	}
 }

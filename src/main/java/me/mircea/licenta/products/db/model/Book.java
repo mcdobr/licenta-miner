@@ -2,9 +2,11 @@ package me.mircea.licenta.products.db.model;
 
 import com.google.common.base.Preconditions;
 import com.googlecode.objectify.Key;
+import com.googlecode.objectify.Ref;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
 import com.googlecode.objectify.annotation.Index;
+import com.googlecode.objectify.annotation.Load;
 import me.mircea.licenta.core.parser.utils.EntityNormalizer;
 
 import java.time.Instant;
@@ -27,13 +29,8 @@ public class Book implements Product {
 	private String format;
 	private String imageUrl;
 
-	//private PricePoint bestCurrentOffer;
-
-
-	private String availability;
-	private Instant latestRetrievedTime;
-	private String latestRetrievedPrice;
-
+	@Load
+	private Ref<PricePoint> bestCurrentOffer;
 
 	public Book() {
 		this.pricepoints = new ArrayList<>();
@@ -86,21 +83,20 @@ public class Book implements Product {
 		Preconditions.checkNotNull(persisted);
 		Preconditions.checkNotNull(addition);
 
-		Book latestUpdated;
-		if (persisted.latestRetrievedTime == null && addition.latestRetrievedTime == null) {
-			latestUpdated = null;
-		} else if (persisted.latestRetrievedTime == null || addition.latestRetrievedTime == null) {
-			latestUpdated = persisted.latestRetrievedTime == null ? addition : persisted;
+		Ref<PricePoint> refPersistedOffer = persisted.bestCurrentOffer;
+		Ref<PricePoint> refAdditionOffer = addition.bestCurrentOffer;
+
+		if (refPersistedOffer == null && refAdditionOffer == null) {
+			this.bestCurrentOffer = null;
 		} else {
-			int compare = persisted.latestRetrievedTime.compareTo(addition.latestRetrievedTime);
-
-			latestUpdated = (compare <= 0) ? addition : persisted;
-		}
-
-		if (latestUpdated != null) {
-			this.latestRetrievedTime = latestUpdated.latestRetrievedTime;
-			this.latestRetrievedPrice = latestUpdated.latestRetrievedPrice;
-			this.availability = latestUpdated.availability;
+			if (refPersistedOffer == null || refAdditionOffer == null) {
+				this.bestCurrentOffer = (refPersistedOffer == null) ? refAdditionOffer : refPersistedOffer;
+			} else {
+				PricePoint persistedOffer = persisted.getBestCurrentOffer();
+				PricePoint additionOffer = addition.getBestCurrentOffer();
+				int compare = persistedOffer.getRetrievedTime().compareTo(additionOffer.getRetrievedTime());
+				this.bestCurrentOffer = (compare <= 0) ? refAdditionOffer : refPersistedOffer;
+			}
 		}
 	}
 	
@@ -116,7 +112,7 @@ public class Book implements Product {
 	public static Book merge(Book persisted, Book addition, Locale locale) {
 		return new Book(persisted, addition, locale);
 	}
-	
+
 	public Long getId() {
 		return id;
 	}
@@ -197,32 +193,12 @@ public class Book implements Product {
 		this.imageUrl = imageUrl;
 	}
 
-	public Instant getLatestRetrievedTime() {
-		return latestRetrievedTime;
+	public PricePoint getBestCurrentOffer() {
+		return bestCurrentOffer.get();
 	}
 
-	public void setLatestRetrievedTime(Instant latestRetrievedTime) {
-		this.latestRetrievedTime = latestRetrievedTime;
-	}
-
-	public void setLatestRetrievedTime(Long epochTime) {
-		this.latestRetrievedTime = Instant.ofEpochMilli(epochTime);
-	}
-
-	public String getLatestRetrievedPrice() {
-		return latestRetrievedPrice;
-	}
-
-	public void setLatestRetrievedPrice(String latestRetrievedPrice) {
-		this.latestRetrievedPrice = latestRetrievedPrice;
-	}
-
-	public String getAvailability() {
-		return availability;
-	}
-
-	public void setAvailability(String availability) {
-		this.availability = availability;
+	public void setBestCurrentOffer(PricePoint bestCurrentOffer) {
+		this.bestCurrentOffer = Ref.create(bestCurrentOffer);
 	}
 
 	@Override

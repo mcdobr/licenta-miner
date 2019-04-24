@@ -11,6 +11,7 @@ import me.mircea.licenta.products.db.model.Book;
 import me.mircea.licenta.products.db.model.PricePoint;
 import me.mircea.licenta.scraper.infoextraction.HeuristicalBookExtractor;
 import me.mircea.licenta.scraper.infoextraction.ProductExtractor;
+import me.mircea.licenta.scraper.infoextraction.WrapperBookExtractor;
 import org.bson.types.ObjectId;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -88,8 +89,12 @@ public class Scraper implements Runnable {
 	}
 
 	private ProductExtractor chooseStrategy() {
-		// WebWrapper wrapper = getWrapperForSite(this.site);
-		return new HeuristicalBookExtractor();
+    	Optional<Wrapper> possibleWrapper = CrawlDatabaseManager.instance.getWrapperForDomain(this.job.getDomain());
+    	if (possibleWrapper.isPresent()) {
+			return new WrapperBookExtractor(possibleWrapper.get());
+		} else {
+			return new HeuristicalBookExtractor();
+		}
 	}
 
 	private Optional<Document> tryToGetPage(String url) {
@@ -114,43 +119,52 @@ public class Scraper implements Runnable {
 	    Runnable work = () -> {
             Optional<Document> possibleDocument = tryToGetPage(page.getUrl());
             if (possibleDocument.isPresent()) {
-                Document htmlDocument = possibleDocument.get();
-
-                Optional<SimpleImmutableEntry<Book, PricePoint>> possiblePair = extractBookOffer(htmlDocument, strategy);
-				if (possiblePair.isPresent()) {
-					SimpleImmutableEntry<Book, PricePoint> bop = possiblePair.get();
-					if (bop.getKey().getIsbn() != null) {
-						ObjectifyService.run(() -> {
-							persistBookOfferPair(bop);
-							return null;
-						});
-					} else {
-						page.setType(PageType.JUNK);
-					}
-
-					updateCrawlFrontier(page, htmlDocument);
-				}
-            }
+				scrapeFromReachablePage(page, strategy, possibleDocument.get());
+            } else {
+            	page.setType(PageType.JUNK);
+			}
+			updateCrawlFrontier(page);
         };
 	    backgroundWorker.submit(work);
 	}
 
-	private void updateCrawlFrontier(Page page, Document content) {
-		Preconditions.checkNotNull(page);
-		Preconditions.checkNotNull(content);
+	private Page scrapeFromReachablePage(Page page, ProductExtractor strategy, Document htmlDocument) {
+		SimpleImmutableEntry<Book, PricePoint> bookOfferPair = extractBookOffer(htmlDocument, strategy);
 
-		page.setTitle(content.title());
-		page.setUrl(HtmlUtil.getCanonicalUrl(content).orElse(page.getUrl()));
+		page.setTitle(htmlDocument.title());
+		page.setUrl(HtmlUtil.getCanonicalUrl(htmlDocument).orElse(page.getUrl()));
 		page.setRetrievedTime(Instant.now());
 		page.setLastJob(this.job.getId());
 
+		// if has a product-offer pair
+		if (bookOfferPair.getKey() != null && bookOfferPair.getValue() != null) {
+			if (bookOfferPair.getKey().getIsbn() != null) {
+				page.setType(PageType.PRODUCT);
+				ObjectifyService.run(() -> {
+					persistBookOfferPair(bookOfferPair);
+					return null;
+				});
+			} else {
+				page.setType(PageType.JUNK);
+			}
+		} else if (bookOfferPair.getKey() == null){
+			page.setType(PageType.JUNK);
+		} else {
+			page.setType(PageType.UNAVAILABLE);
+		}
+
+		return page;
+	}
+
+	private void updateCrawlFrontier(Page page) {
+		Preconditions.checkNotNull(page);
 		CrawlDatabaseManager.instance.upsertOnePage(page);
 	}
 
 	/**
 	 * @return pair of non-null book and pricepoint or empty
 	 */
-	private Optional<SimpleImmutableEntry<Book, PricePoint>> extractBookOffer(Document page,
+	private SimpleImmutableEntry<Book, PricePoint> extractBookOffer(Document page,
 			ProductExtractor strategy) {
 		Preconditions.checkNotNull(page);
 		Preconditions.checkNotNull(strategy);
@@ -158,13 +172,7 @@ public class Scraper implements Runnable {
 		Book book = (Book)strategy.extract(page);
 		PricePoint offer = strategy.extractPricePoint(page, Locale.forLanguageTag("ro-ro"));
 
-		if (book == null || offer == null) {
-			return Optional.empty();
-		} else {
-			// TODO: is this next line necessary?
-			offer.setPageTitle(page.title());
-			return Optional.of(new SimpleImmutableEntry<>(book, offer));
-		}
+		return new SimpleImmutableEntry<>(book, offer);
 	}
 
 	private void persistBookOfferPair(SimpleImmutableEntry<Book, PricePoint> bookOfferPair) {
@@ -175,11 +183,15 @@ public class Scraper implements Runnable {
     	Preconditions.checkNotNull(book);
     	Preconditions.checkNotNull(offer);
 
+    	/*
 		book.setLatestRetrievedTime(offer.getRetrievedTime());
 		book.setLatestRetrievedPrice(offer.getNominalValue().setScale(2, BigDecimal.ROUND_CEILING).toString());
+		*/
 
         List<Book> persistedBooks = findBookByIsbn(book);
         Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
+		book.setBestCurrentOffer(offer);
+
 
 		book.getPricepoints().add(offerKey);
 		if (persistedBooks.isEmpty()) {

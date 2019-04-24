@@ -66,7 +66,8 @@ public class HeuristicalBookExtractorTest {
 		assertEquals("Pentru o genealogie a globalizării", extractionStrategy.extractTitle(alexandriaContent));
 		assertEquals("Bird Box. Orbește", extractionStrategy.extractTitle(cartepediaPage));
 	}
-	
+
+	/*
 	@Test
 	public void shouldExtractAuthors() {
 		assertEquals("Claude Karnoouh", extractionStrategy.extractAuthors(alexandriaMainContent));
@@ -74,7 +75,8 @@ public class HeuristicalBookExtractorTest {
 		assertEquals("Simona Tivadar", extractionStrategy.extractAuthors(librisMainContent));
 		assertEquals("Josh Malerman", extractionStrategy.extractAuthors(cartepediaPage));
 	}
-	
+	*/
+
 	@Test
 	public void shouldExtractImages() {
 		assertEquals("http://www.librariilealexandria.ro/image/cache/catalog/produse/carti/Filosofie%20politica/Pentru%20o%20genealogie%202017-480x480.jpg", extractionStrategy.extractImageUrl(alexandriaContent));
@@ -97,6 +99,8 @@ public class HeuristicalBookExtractorTest {
 		assertNotNull(book.getIsbn());
 		assertNotEquals(book.getIsbn().trim(), "");
 	}
+
+	/*
 	@Test
 	public void shouldExtractFormats() {
 		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(alexandriaMainContent)));
@@ -106,10 +110,11 @@ public class HeuristicalBookExtractorTest {
 	
 	@Test
 	public void shouldExtractPublishers() {
+
 		assertEquals("Alexandria Publishing House", extractionStrategy.extractPublisher(alexandriaMainContent));	
 		assertEquals("Polirom", extractionStrategy.extractPublisher(carturestiMainContent));
 		assertEquals("HUMANITAS", extractionStrategy.extractPublisher(librisMainContent));
-	}
+	} */
 
 	@Test
 	public void shouldExtractPrices() throws IOException {
