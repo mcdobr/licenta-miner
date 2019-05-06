@@ -1,6 +1,7 @@
 package me.mircea.licenta.scraper;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Stopwatch;
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.cmd.LoadType;
@@ -19,8 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.net.SocketTimeoutException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -37,10 +38,24 @@ import static java.util.AbstractMap.SimpleImmutableEntry;
  * @brief This class is used to extract books from product description pages.
  */
 public class Scraper implements Runnable {
-	private static final Logger logger = LoggerFactory.getLogger(Scraper.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(Scraper.class);
 
 	private final Job job;
+
 	private final ExecutorService backgroundWorker;
+    private final ProductExtractor extractor;
+
+    // grija la acces nesincronizat?
+    private int noPagesToBeRequested = 0;
+    private int noRequests = 0;
+    private int noPagesReached = 0;
+	private int noProductOfferPairsFound = 0;
+
+	private Duration totalAsyncDuration = Duration.ZERO;
+	private Duration totalDownloadDuration = Duration.ZERO;
+	private Duration totalProcessingDuration = Duration.ZERO;
+	private Duration totalCrawlPersistenceDuration = Duration.ZERO;
+	private Duration totalProductPersistenceDuration = Duration.ZERO;
 
 
     public Scraper(String seed, ObjectId continueJob) throws IOException {
@@ -49,27 +64,36 @@ public class Scraper implements Runnable {
 
     	this.job = new Job(continueJob, seed, JobType.SCRAPE);
 		this.backgroundWorker = Executors.newSingleThreadExecutor();
+		this.extractor = chooseStrategy();
 	}
-
 
 	public Scraper(String seed) throws IOException {
         Preconditions.checkNotNull(seed);
 		this.job = new Job(seed, JobType.SCRAPE);
 		this.backgroundWorker = Executors.newSingleThreadExecutor();
+		this.extractor = chooseStrategy();
 	}
+
+    private ProductExtractor chooseStrategy() {
+        Optional<Wrapper> possibleWrapper = CrawlDatabaseManager.instance.getWrapperForDomain(this.job.getDomain());
+        if (possibleWrapper.isPresent()) {
+            return new WrapperBookExtractor(possibleWrapper.get());
+        } else {
+            return new HeuristicalBookExtractor();
+        }
+    }
 
 	@Override
 	public void run() {
 		try {
-			ProductExtractor strategy = chooseStrategy();
-			scrape(strategy);
+			scrape();
 		} catch (InterruptedException e) {
-			logger.warn("Thread interrupted {}", e);
+			LOGGER.warn("Thread interrupted {}", e);
 			Thread.currentThread().interrupt();
 		}
 	}
 
-	public void scrape(ProductExtractor strategy) throws InterruptedException {
+	public void scrape() throws InterruptedException {
 		CrawlDatabaseManager.instance.upsertJob(this.job);
 		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(job.getDomain());
 
@@ -77,8 +101,13 @@ public class Scraper implements Runnable {
 			if (this.job.getId().equals(page.getLastJob()))
 				break;
 
-			propagateChanges(page, strategy);
+
+
+
+			backgroundWorker.execute(() -> scrapeFromPage(page));
 			TimeUnit.MILLISECONDS.sleep(job.getRobotRules().getCrawlDelay());
+
+			++noPagesToBeRequested;
 		}
 
 		this.job.setEnd(Instant.now());
@@ -86,15 +115,25 @@ public class Scraper implements Runnable {
 		CrawlDatabaseManager.instance.upsertJob(job);
 
 		shutdownExecutor();
-	}
 
-	private ProductExtractor chooseStrategy() {
-    	Optional<Wrapper> possibleWrapper = CrawlDatabaseManager.instance.getWrapperForDomain(this.job.getDomain());
-    	if (possibleWrapper.isPresent()) {
-			return new WrapperBookExtractor(possibleWrapper.get());
-		} else {
-			return new HeuristicalBookExtractor();
-		}
+		LOGGER.info("Domain {}, number of pages to be requested: {}", job.getDomain(), noPagesToBeRequested);
+		LOGGER.info("Domain {}, number of GET requests made: {}", job.getDomain(), noRequests);
+		LOGGER.info("Domain {}, number of pages reached: {}", job.getDomain(), noPagesReached);
+		LOGGER.info("Domain {}, number of product-offer pairs found: {}", job.getDomain(), noProductOfferPairsFound);
+
+
+		LOGGER.info("Domain {}, total async duration: {}", job.getDomain(), totalAsyncDuration);
+		LOGGER.info("Domain {}, total download of page time: {}", job.getDomain(), totalDownloadDuration);
+		LOGGER.info("Domain {}, total processing of page time: {}", job.getDomain(), totalProcessingDuration);
+        LOGGER.info("Domain {}, total crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration);
+		LOGGER.info("Domain {}, total product persistence of product time: {}", job.getDomain(), totalProductPersistenceDuration);
+
+
+		LOGGER.info("Domain {}, average async duration: {}", job.getDomain(), totalAsyncDuration.dividedBy(noPagesToBeRequested));
+		LOGGER.info("Domain {}, average download of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesToBeRequested));
+		LOGGER.info("Domain {}, average processing of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesReached));
+        LOGGER.info("Domain {}, average crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration.dividedBy((noPagesReached)));
+		LOGGER.info("Domain {}, average product persistence of product time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noProductOfferPairsFound));
 	}
 
 	private Optional<Document> tryToGetPage(String url) {
@@ -102,91 +141,114 @@ public class Scraper implements Runnable {
 		Document bookPage = null;
 		for (int i = 0; i < MAX_TRIES; ++i) {
 			try {
-				logger.info("Retrieving {} at {}", url, Instant.now());
+				++noRequests;
+				LOGGER.info("Retrieving {} at {}", url, Instant.now());
 				bookPage = HtmlUtil.sanitizeHtml(
 						Jsoup.connect(url).userAgent(Job.getDefault("user_agent")).get());
 				break;
 			} catch (SocketTimeoutException e) {
-				logger.warn("Socket timed out on {}", url);
+				LOGGER.warn("Socket timed out on {}", url);
 			} catch (IOException e) {
-				logger.warn("Could not get page {}", url);
+				LOGGER.warn("Could not get page {}", url);
 			}
 		}
 		return Optional.ofNullable(bookPage);
 	}
 
-	private void propagateChanges(Page page, ProductExtractor strategy) {
-	    Runnable work = () -> {
-            Optional<Document> possibleDocument = tryToGetPage(page.getUrl());
-            if (possibleDocument.isPresent()) {
-				scrapeFromReachablePage(page, strategy, possibleDocument.get());
-            } else {
-            	page.setType(PageType.JUNK);
-			}
-			updateCrawlFrontier(page);
-        };
-	    backgroundWorker.submit(work);
+	private void scrapeFromPage(Page page) {
+		Stopwatch asyncStopwatch = Stopwatch.createStarted();
+
+		Optional<Document> possibleDocument = tryToGetPage(page.getUrl());
+		totalDownloadDuration = totalDownloadDuration.plus(asyncStopwatch.elapsed());
+
+		if (possibleDocument.isPresent()) {
+			scrapeFromReachablePage(page, possibleDocument.get());
+
+			++noPagesReached;
+		} else {
+			page.setType(PageType.UNREACHABLE);
+		}
+
+		updateCrawlFrontier(page);
+
+
+		asyncStopwatch.stop();
+		totalAsyncDuration = totalAsyncDuration.plus(asyncStopwatch.elapsed());
 	}
 
-	private Page scrapeFromReachablePage(Page page, ProductExtractor strategy, Document htmlDocument) {
-		SimpleImmutableEntry<Book, PricePoint> bookOfferPair = extractBookOffer(htmlDocument, strategy);
+	private Page scrapeFromReachablePage(Page page, Document htmlDocument) {
+		Stopwatch processingStopwatch = Stopwatch.createStarted();
+    	SimpleImmutableEntry<Book, PricePoint> bookOfferPair = extractBookOffer(htmlDocument);
+
+    	processingStopwatch.stop();
+		totalProcessingDuration = totalProcessingDuration.plus(processingStopwatch.elapsed());
+
 
 		page.setTitle(htmlDocument.title());
 		page.setUrl(HtmlUtil.getCanonicalUrl(htmlDocument).orElse(page.getUrl()));
 		page.setRetrievedTime(Instant.now());
 		page.setLastJob(this.job.getId());
 
-		// if has a product-offer pair
-		if (bookOfferPair.getKey() != null && bookOfferPair.getValue() != null) {
-			if (bookOfferPair.getKey().getIsbn() != null) {
-				page.setType(PageType.PRODUCT);
-				ObjectifyService.run(() -> {
-					persistBookOfferPair(bookOfferPair);
-					return null;
-				});
-			} else {
-				page.setType(PageType.JUNK);
-			}
-		} else if (bookOfferPair.getKey() == null){
+		if (hasValidBookOfferPair(bookOfferPair)) {
+			++noProductOfferPairsFound;
+
+            page.setType(PageType.PRODUCT);
+            ObjectifyService.run(() -> {
+                persistBookOfferPair(bookOfferPair);
+                return null;
+            });
+		} else if (!hasValidBook(bookOfferPair.getKey())) {
 			page.setType(PageType.JUNK);
-		} else {
+			LOGGER.info("Page did not have a product {}", page.getUrl());
+		} else if (!hasValidOffer(bookOfferPair.getValue())){
 			page.setType(PageType.UNAVAILABLE);
+			LOGGER.info("Page did not have an offer {}", page.getUrl());
 		}
 
 		return page;
 	}
 
+	private boolean hasValidBookOfferPair(SimpleImmutableEntry<Book, PricePoint> bookOfferPair) {
+        return hasValidBook(bookOfferPair.getKey()) && hasValidOffer(bookOfferPair.getValue());
+    }
+
+    private boolean hasValidBook(Book book) {
+        return book != null && book.getIsbn() != null;
+    }
+
+    private boolean hasValidOffer(PricePoint pricePoint) {
+        return pricePoint != null;
+    }
+
 	private void updateCrawlFrontier(Page page) {
 		Preconditions.checkNotNull(page);
+
+		Stopwatch stopwatch = Stopwatch.createStarted();
 		CrawlDatabaseManager.instance.upsertOnePage(page);
+		stopwatch.stop();
+
+		totalCrawlPersistenceDuration = totalCrawlPersistenceDuration.plus(stopwatch.elapsed());
 	}
 
-	/**
-	 * @return pair of non-null book and pricepoint or empty
-	 */
-	private SimpleImmutableEntry<Book, PricePoint> extractBookOffer(Document page,
-			ProductExtractor strategy) {
-		Preconditions.checkNotNull(page);
-		Preconditions.checkNotNull(strategy);
+	private SimpleImmutableEntry<Book, PricePoint> extractBookOffer(Document doc) {
+		Preconditions.checkNotNull(doc);
 
-		Book book = (Book)strategy.extract(page);
-		PricePoint offer = strategy.extractPricePoint(page, Locale.forLanguageTag("ro-ro"));
-
+		Book book = (Book)this.extractor.extract(doc);
+		PricePoint offer = this.extractor.extractPricePoint(doc, Locale.forLanguageTag("ro-ro"));
 		return new SimpleImmutableEntry<>(book, offer);
 	}
 
 	private void persistBookOfferPair(SimpleImmutableEntry<Book, PricePoint> bookOfferPair) {
+    	Stopwatch persistStopwatch = Stopwatch.createStarted();
 		persistBookOfferPair(bookOfferPair.getKey(), bookOfferPair.getValue());
+
+		persistStopwatch.stop();
+		totalProductPersistenceDuration = totalProductPersistenceDuration.plus(persistStopwatch.elapsed());
 	}
 
 	private void persistBookOfferPair(Book book, PricePoint offer) {
     	Preconditions.checkNotNull(book);
     	Preconditions.checkNotNull(offer);
-
-    	/*
-		book.setLatestRetrievedTime(offer.getRetrievedTime());
-		book.setLatestRetrievedPrice(offer.getNominalValue().setScale(2, BigDecimal.ROUND_CEILING).toString());
-		*/
 
         List<Book> persistedBooks = findBookByIsbn(book);
         Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
@@ -196,7 +258,7 @@ public class Scraper implements Runnable {
 		book.getPricepoints().add(offerKey);
 		if (persistedBooks.isEmpty()) {
 			ofy().save().entity(book);
-			logger.info("Saving new {} to db.", book);
+			LOGGER.info("Saving new {} to db.", book);
 		} else {
 			Optional<Book> mergedBook = persistedBooks.stream().reduce(Book::merge);
 
@@ -206,7 +268,7 @@ public class Scraper implements Runnable {
 
 				ofy().delete().entities(persistedBooks);
 				ofy().save().entities(bookToPersist);
-				logger.info("Updating book to {} in db.", mergedBook.get());
+				LOGGER.info("Updating book to {} in db.", mergedBook.get());
 			}
 		}
 	}
@@ -227,10 +289,10 @@ public class Scraper implements Runnable {
 		if (!backgroundWorker.awaitTermination(1, TimeUnit.MINUTES)) {
 			backgroundWorker.shutdownNow();
 			if (!backgroundWorker.awaitTermination(1, TimeUnit.MINUTES)) {
-				logger.info("Exiting scraper because of timeout: {}", backgroundWorker);
+				LOGGER.info("Exiting scraper because of timeout: {}", backgroundWorker);
 				System.exit(0);
 			}
-			logger.info("Exiting scraper normally: {}", backgroundWorker);
+			LOGGER.info("Exiting scraper normally: {}", backgroundWorker);
 		}
 	}
 

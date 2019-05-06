@@ -1,6 +1,7 @@
 package me.mircea.licenta.scraper.webservices;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.Lists;
 import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
 import me.mircea.licenta.core.crawl.db.model.Job;
 import me.mircea.licenta.core.crawl.db.model.JobType;
@@ -27,10 +28,7 @@ public class JobResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public List<Job> listActiveScraperJobs() {
 		Iterable<Job> iterable = CrawlDatabaseManager.instance.getActiveJobsByType(JobType.SCRAPE);
-
-		List<Job> jobList = new ArrayList<>();
-		iterable.forEach(jobList::add);
-		return jobList;
+		return Lists.newArrayList(iterable);
 	}
 
 	@GET

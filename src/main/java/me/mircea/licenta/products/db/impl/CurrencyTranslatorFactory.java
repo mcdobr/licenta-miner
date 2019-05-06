@@ -4,11 +4,12 @@ import java.util.Currency;
 
 import com.google.cloud.datastore.StringValue;
 import com.google.cloud.datastore.Value;
+import com.google.cloud.datastore.ValueType;
 import com.googlecode.objectify.impl.translate.SimpleTranslatorFactory;
 
 public class CurrencyTranslatorFactory extends SimpleTranslatorFactory<Currency, String> {
 	public CurrencyTranslatorFactory() {
-		super(Currency.class);
+		super(Currency.class, ValueType.STRING);
 	}
 
 	@Override

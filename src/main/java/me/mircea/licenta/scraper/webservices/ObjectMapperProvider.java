@@ -13,11 +13,10 @@ import javax.ws.rs.ext.Provider;
 public class ObjectMapperProvider implements ContextResolver<ObjectMapper> {
     @Override
     public ObjectMapper getContext(Class<?> type) {
-        final ObjectMapper objMapper = new ObjectMapper()
+        return new ObjectMapper()
                 .registerModule(new ParameterNamesModule())
                 .registerModule(new Jdk8Module())
                 .registerModule(new JavaTimeModule())
                 .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-        return objMapper;
     }
 }

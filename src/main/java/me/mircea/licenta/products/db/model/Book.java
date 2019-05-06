@@ -14,6 +14,20 @@ import java.util.*;
 
 @Entity
 public class Book implements Product {
+	/**
+	 * @param persisted
+	 * @param addition
+	 * @return An object resulted from a merger that strives for completeness.
+	 */
+	public static Book merge(Book persisted, Book addition) {
+		return new Book(persisted, addition);
+	}
+
+	public static Book merge(Book persisted, Book addition, Locale locale) {
+		return new Book(persisted, addition, locale);
+	}
+
+
 	@Id
 	private Long id;
 	private String title;
@@ -29,8 +43,8 @@ public class Book implements Product {
 	private String format;
 	private String imageUrl;
 
-	@Load
-	private Ref<PricePoint> bestCurrentOffer;
+	@Index
+	private PricePoint bestCurrentOffer;
 
 	public Book() {
 		this.pricepoints = new ArrayList<>();
@@ -83,34 +97,17 @@ public class Book implements Product {
 		Preconditions.checkNotNull(persisted);
 		Preconditions.checkNotNull(addition);
 
-		Ref<PricePoint> refPersistedOffer = persisted.bestCurrentOffer;
-		Ref<PricePoint> refAdditionOffer = addition.bestCurrentOffer;
 
-		if (refPersistedOffer == null && refAdditionOffer == null) {
+		if (persisted.bestCurrentOffer == null && addition.bestCurrentOffer == null) {
 			this.bestCurrentOffer = null;
 		} else {
-			if (refPersistedOffer == null || refAdditionOffer == null) {
-				this.bestCurrentOffer = (refPersistedOffer == null) ? refAdditionOffer : refPersistedOffer;
+			if (persisted.bestCurrentOffer == null || addition.bestCurrentOffer == null) {
+				this.bestCurrentOffer = (persisted.bestCurrentOffer == null) ? addition.bestCurrentOffer : persisted.bestCurrentOffer;
 			} else {
-				PricePoint persistedOffer = persisted.getBestCurrentOffer();
-				PricePoint additionOffer = addition.getBestCurrentOffer();
-				int compare = persistedOffer.getRetrievedTime().compareTo(additionOffer.getRetrievedTime());
-				this.bestCurrentOffer = (compare <= 0) ? refAdditionOffer : refPersistedOffer;
+				int compare = persisted.bestCurrentOffer.getRetrievedTime().compareTo(addition.bestCurrentOffer.getRetrievedTime());
+				this.bestCurrentOffer = (compare <= 0) ? addition.bestCurrentOffer : persisted.bestCurrentOffer;
 			}
 		}
-	}
-	
-	/**
-	 * @param persisted
-	 * @param addition
-	 * @return An object resulted from a merger that strives for completeness.
-	 */
-	public static Book merge(Book persisted, Book addition) {
-		return new Book(persisted, addition);
-	}
-
-	public static Book merge(Book persisted, Book addition, Locale locale) {
-		return new Book(persisted, addition, locale);
 	}
 
 	public Long getId() {
@@ -194,11 +191,11 @@ public class Book implements Product {
 	}
 
 	public PricePoint getBestCurrentOffer() {
-		return bestCurrentOffer.get();
+		return bestCurrentOffer;
 	}
 
 	public void setBestCurrentOffer(PricePoint bestCurrentOffer) {
-		this.bestCurrentOffer = Ref.create(bestCurrentOffer);
+		this.bestCurrentOffer = bestCurrentOffer;
 	}
 
 	@Override

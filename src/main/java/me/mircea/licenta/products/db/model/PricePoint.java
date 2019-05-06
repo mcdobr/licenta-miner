@@ -29,7 +29,7 @@ public class PricePoint {
 	private Instant retrievedTime;
 	private String url;
 	private String pageTitle;
-	private Boolean availability;
+	private Availability availability;
 	@Index
 	private String site;
 
@@ -103,11 +103,11 @@ public class PricePoint {
 		this.pageTitle = pageTitle;
 	}
 
-	public Boolean getAvailability() {
+	public Availability getAvailability() {
 		return availability;
 	}
 
-	public void setAvailability(Boolean availability) {
+	public void setAvailability(Availability availability) {
 		this.availability = availability;
 	}
 

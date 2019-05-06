@@ -4,7 +4,7 @@ import com.google.common.base.Preconditions;
 import me.mircea.licenta.core.crawl.db.model.Wrapper;
 import me.mircea.licenta.core.parser.utils.CssUtil;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
-import me.mircea.licenta.core.parser.utils.TextValueCoercer;
+import me.mircea.licenta.scraper.utils.TextValueCoercer;
 import me.mircea.licenta.products.db.model.PricePoint;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -25,8 +25,13 @@ public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator
 	private static final Logger LOGGER = LoggerFactory.getLogger(HeuristicalBookExtractor.class);
 	private static final String ISBN_PATTERN_STRING = "(?=[-\\d\\ xX]{10,})\\d+[-\\ ]?\\d+[-\\ ]?\\d+[-\\ ]?\\d*[-\\ ]?[\\dxX]";
 	private static final Pattern ISBN_PATTERN = Pattern.compile(ISBN_PATTERN_STRING);
-	private static final String IMAGE_WITH_LINK_SELECTOR = "[class*='produ']:has(img):has(a)";
-	private static final String PRODUCT_CARD_SELECTOR = CssUtil.makeLeafOfSelector(IMAGE_WITH_LINK_SELECTOR);
+
+	private TextValueCoercer coercer;
+
+	public HeuristicalBookExtractor() {
+		this.coercer = new TextValueCoercer();
+	}
+
 
 	@Override
 	public String extractTitle(Element htmlElement) {
@@ -37,20 +42,22 @@ public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator
 		Element title = htmlElement.selectFirst("title");
 		if (title != null)
 			return title.text();
-		
-		String cssSelector = CssUtil.makeClassOrIdContains(TextValueCoercer.titleWordSet);
+
+		String cssSelector = CssUtil.makeClassOrIdContains(this.coercer.titleWordSet);
 		return htmlElement.select(cssSelector).first().text();
 	}
 	
 	@Override
 	public String extractAuthors(Element htmlElement, Map<String, String> attributes) {
-		Element authorElement = htmlElement.select(CssUtil.makeClassOrIdContains(TextValueCoercer.authorWordSet)).first();
+		Element authorElement = htmlElement.select(CssUtil.makeClassOrIdContains(this.coercer.authorWordSet)).first();
 		String text = null;
 		if (authorElement != null) {
 			text = authorElement.text();
-		} else {	
+		} else {
+			TextValueCoercer coercer = new TextValueCoercer();
+
 			Optional<String> authorAttribute = attributes.keySet().stream()
-				.filter(TextValueCoercer.authorWordSet::contains)
+				.filter(this.coercer.authorWordSet::contains)
 				.findFirst();
 			if (authorAttribute.isPresent())
 				text = attributes.get(authorAttribute.get());
@@ -64,7 +71,7 @@ public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator
 		String isbn = null;
 		Optional<String> isbnAttribute = attributes.keySet()
 				.stream()
-				.filter(key -> !Collections.disjoint(TextValueCoercer.codeWordSet, Arrays.asList(key.split("[\\s|,.;:]"))))
+				.filter(key -> !Collections.disjoint(this.coercer.codeWordSet, Arrays.asList(key.split("[\\s|,.;:]"))))
 				.findFirst();
 		if (isbnAttribute.isPresent())
 			isbn = attributes.get(isbnAttribute.get()).replaceAll("^[ a-zA-Z]*", "");
@@ -77,11 +84,11 @@ public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator
 		String format = null;
 		
 		Optional<Map.Entry<String, String>> formatAttribute = attributes.entrySet().stream()
-			.filter(entry -> TextValueCoercer.formatsWordSet.containsKey(entry.getValue()))
+			.filter(entry -> this.coercer.formatsWordSet.containsKey(entry.getValue()))
 			.findFirst();
 		
 		if (formatAttribute.isPresent())
-			format = TextValueCoercer.formatsWordSet.get(formatAttribute.get().getValue());
+			format = this.coercer.formatsWordSet.get(formatAttribute.get().getValue());
 		
 		return format;
 	}
@@ -92,7 +99,7 @@ public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator
 		
 		Optional<Map.Entry<String, String>> publisherAttribute = attributes.entrySet()
 				.stream()
-				.filter(entry -> !Collections.disjoint(Arrays.asList(entry.getKey().split(TextValueCoercer.SEPARATORS)), TextValueCoercer.publisherWordSet))
+				.filter(entry -> !Collections.disjoint(Arrays.asList(entry.getKey().split(TextValueCoercer.SEPARATORS)), this.coercer.publisherWordSet))
 				.findFirst();
 		
 		if (publisherAttribute.isPresent())
@@ -108,7 +115,7 @@ public class HeuristicalBookExtractor implements BookExtractor, WrapperGenerator
 		PricePoint pricePoint = null;
 		try {
 			// TODO: be locale sensitive
-			Element priceElement = productPage.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)," + CssUtil.makeClassOrIdContains(TextValueCoercer.priceWordSet));
+			Element priceElement = productPage.selectFirst(":matchesOwn((,|.)[0-9]{2} lei)," + CssUtil.makeClassOrIdContains(this.coercer.priceWordSet));
 			if (priceElement != null) {
 				String priceTag = priceElement.text().replaceAll(".*:", "").trim();
 				String url = HtmlUtil.getCanonicalUrl(productPage).orElse(productPage.baseUri());

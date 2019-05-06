@@ -22,10 +22,8 @@ public interface BookExtractor extends ProductExtractor {
         book.setTitle(extractTitle(productPage));
         book.setImageUrl(extractImageUrl(productPage));
         book.setDescription(extractDescription(productPage));
-        //book.setAvailability(extractAvailability(productPage));
 
         Map<String, String> attributes = extractAttributes(productPage);
-
         book.setAuthors(extractAuthors(productPage, attributes));
         book.setIsbn(extractIsbn(productPage, attributes));
         book.setFormat(extractFormat(productPage, attributes));
