@@ -7,8 +7,8 @@
 	<artifactId>scraper</artifactId>
 	<version>0.1.0</version>
 
-	<name>scraper</name>
-	<packaging>war</packaging>
+    <name>scraper</name>
+	<packaging>pom</packaging>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -77,7 +77,6 @@
 			<artifactId>appengine-api-1.0-sdk</artifactId>
 			<version>1.9.73</version>
 		</dependency>
-
 
 		<dependency>
 			<groupId>junit</groupId>

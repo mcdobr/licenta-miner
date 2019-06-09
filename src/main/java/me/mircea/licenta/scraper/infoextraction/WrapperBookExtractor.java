@@ -115,11 +115,9 @@ public class WrapperBookExtractor implements BookExtractor {
 		Optional<Selector> possibleSelector = wrapper.getSelectorByName("pricepoint");
 		if (possibleSelector.isPresent()) {
 			Selector selector = possibleSelector.get();
-			Element priceTagElement = productPage.selectFirst(selector.getQuery());
+			String priceTag = selector.selectFirstFromElement(productPage);
 
-			if (priceTagElement != null) {
-				String priceTag = priceTagElement.text();
-
+			if (priceTag != null) {
 				try {
 					price = PricePoint.valueOf(priceTag, locale, productPage);
 
@@ -176,24 +174,7 @@ public class WrapperBookExtractor implements BookExtractor {
 		Optional<Selector> possibleSelector = wrapper.getSelectorByName(selectorName);
 		if (possibleSelector.isPresent()) {
 			Selector selector = possibleSelector.get();
-			Element element = htmlElement.selectFirst(selector.getQuery());
-
-			if (element != null) {
-				switch (selector.getType()) {
-					case TEXT:
-						result = element.text();
-						break;
-					case LINK:
-						result = element.absUrl("href");
-						break;
-					case IMAGE:
-						result = element.absUrl("src");
-						break;
-					case ATTRIBUTE:
-						result = element.attr(selector.getTarget());
-						break;
-				}
-			}
+			result = selector.selectFirstFromElement(htmlElement);
 		}
 		return result;
 	}

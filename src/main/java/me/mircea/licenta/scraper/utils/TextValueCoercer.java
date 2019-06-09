@@ -63,25 +63,34 @@ public class TextValueCoercer {
 		// TODO: add rest of item availabilities
 		// discontinued (sale?)
 		availabilityWordSet.put("indisponibil", Availability.DISCONTINUED);
+		availabilityWordSet.put("discontinued", Availability.DISCONTINUED);
 
 		// in stock
 		availabilityWordSet.put("in stoc", Availability.IN_STOCK);
 		availabilityWordSet.put("în stoc", Availability.IN_STOCK);
 		availabilityWordSet.put("disponibil", Availability.IN_STOCK);
+		availabilityWordSet.put("in_stock", Availability.IN_STOCK);
+		availabilityWordSet.put("InStock", Availability.IN_STOCK);
 
 		// limited availability
 		availabilityWordSet.put("limitat", Availability.LIMITED_AVAILABILITY);
 		availabilityWordSet.put("stoc limitat", Availability.LIMITED_AVAILABILITY);
+		availabilityWordSet.put("limited", Availability.LIMITED_AVAILABILITY);
+		availabilityWordSet.put("limited_availability", Availability.LIMITED_AVAILABILITY);
+		availabilityWordSet.put("LimitedAvailability", Availability.LIMITED_AVAILABILITY);
 
 		// out of stock
 		availabilityWordSet.put("la comandă", Availability.OUT_OF_STOCK);
 		availabilityWordSet.put("la comanda", Availability.OUT_OF_STOCK);
 		availabilityWordSet.put("comandă", Availability.OUT_OF_STOCK);
 		availabilityWordSet.put("comanda", Availability.OUT_OF_STOCK);
+		availabilityWordSet.put("out_of_stock", Availability.OUT_OF_STOCK);
+		availabilityWordSet.put("OutOfStock", Availability.OUT_OF_STOCK);
 
 		// preorder
 		availabilityWordSet.put("precomandă", Availability.PREORDER);
 		availabilityWordSet.put("precomanda", Availability.PREORDER);
+		availabilityWordSet.put("preoder", Availability.PREORDER);
 	}
 
 

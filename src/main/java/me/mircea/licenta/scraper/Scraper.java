@@ -5,6 +5,7 @@ import com.google.common.base.Stopwatch;
 import com.googlecode.objectify.Key;
 import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.cmd.LoadType;
+import javafx.scene.paint.Stop;
 import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
 import me.mircea.licenta.core.crawl.db.model.*;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
@@ -23,13 +24,9 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.googlecode.objectify.ObjectifyService.ofy;
 import static java.util.AbstractMap.SimpleImmutableEntry;
@@ -41,37 +38,40 @@ public class Scraper implements Runnable {
 	private static final Logger LOGGER = LoggerFactory.getLogger(Scraper.class);
 
 	private final Job job;
-
-	private final ExecutorService backgroundWorker;
     private final ProductExtractor extractor;
 
-    // grija la acces nesincronizat?
-    private int noPagesToBeRequested = 0;
-    private int noRequests = 0;
-    private int noPagesReached = 0;
-	private int noProductOfferPairsFound = 0;
+	private final ScheduledExecutorService downloader;
+	private final BlockingQueue<Map.Entry<Page, Document>> documentQueue;
 
-	private Duration totalAsyncDuration = Duration.ZERO;
+	private AtomicInteger noPagesToBeRequested = new AtomicInteger(0);
+	private AtomicInteger noRequests = new AtomicInteger(0);
+	private AtomicInteger noPagesReached = new AtomicInteger(0);
+	private AtomicInteger noProductOfferPairsFound = new AtomicInteger(0);
+
+	private Duration totalDuration = Duration.ZERO;
 	private Duration totalDownloadDuration = Duration.ZERO;
 	private Duration totalProcessingDuration = Duration.ZERO;
 	private Duration totalCrawlPersistenceDuration = Duration.ZERO;
 	private Duration totalProductPersistenceDuration = Duration.ZERO;
-
 
     public Scraper(String seed, ObjectId continueJob) throws IOException {
     	Preconditions.checkNotNull(seed);
     	Preconditions.checkNotNull(continueJob);
 
     	this.job = new Job(continueJob, seed, JobType.SCRAPE);
-		this.backgroundWorker = Executors.newSingleThreadExecutor();
 		this.extractor = chooseStrategy();
+
+		this.downloader = Executors.newScheduledThreadPool(1);
+		this.documentQueue = new LinkedBlockingQueue<>();
 	}
 
 	public Scraper(String seed) throws IOException {
         Preconditions.checkNotNull(seed);
 		this.job = new Job(seed, JobType.SCRAPE);
-		this.backgroundWorker = Executors.newSingleThreadExecutor();
 		this.extractor = chooseStrategy();
+
+		this.downloader = Executors.newScheduledThreadPool(1);
+		this.documentQueue = new LinkedBlockingQueue<>();
 	}
 
     private ProductExtractor chooseStrategy() {
@@ -86,7 +86,11 @@ public class Scraper implements Runnable {
 	@Override
 	public void run() {
 		try {
+			Stopwatch stopwatch = Stopwatch.createStarted();
 			scrape();
+
+			stopwatch.stop();
+			totalDuration = stopwatch.elapsed();
 		} catch (InterruptedException e) {
 			LOGGER.warn("Thread interrupted {}", e);
 			Thread.currentThread().interrupt();
@@ -95,56 +99,89 @@ public class Scraper implements Runnable {
 
 	public void scrape() throws InterruptedException {
 		CrawlDatabaseManager.instance.upsertJob(this.job);
-		Iterable<Page> pages = CrawlDatabaseManager.instance.getPossibleProductPages(job.getDomain());
+		Iterator<Page> pageIterator = CrawlDatabaseManager.instance.getPossibleProductPages(job.getDomain()).iterator();
 
-		for (Page page : pages) {
-			if (this.job.getId().equals(page.getLastJob()))
-				break;
+		downloader.scheduleAtFixedRate(() -> {
+			if (!pageIterator.hasNext()) {
+				downloader.shutdown();
+			} else {
+				Page page = pageIterator.next();
+				if (this.job.getId().equals(page.getLastJob())) {
+					downloader.shutdown();
+				} else {
+					Optional<Document> possibleDocument = downloadDocument(page.getUrl());
+					documentQueue.add(new AbstractMap.SimpleImmutableEntry<Page, Document>(page, possibleDocument.orElse(null)));
 
+					noPagesToBeRequested.getAndIncrement();
+				}
+			}
+		}, 0, job.getRobotRules().getCrawlDelay(), TimeUnit.MILLISECONDS);
 
+		while (!downloader.isShutdown() || !documentQueue.isEmpty()) {
+			Map.Entry<Page, Document> documentPair = documentQueue.poll(500, TimeUnit.MILLISECONDS);
 
+			if (documentPair != null) {
+				Page page = documentPair.getKey();
+				Document doc = documentPair.getValue();
+				if (doc != null) {
+					scrapeFromReachablePage(documentPair.getKey(), documentPair.getValue());
+				} else {
+					page.setType(PageType.UNREACHABLE);
+				}
 
-			backgroundWorker.execute(() -> scrapeFromPage(page));
-			TimeUnit.MILLISECONDS.sleep(job.getRobotRules().getCrawlDelay());
+				updateCrawlFrontier(page);
 
-			++noPagesToBeRequested;
+				if (noPagesToBeRequested.get() % 10000 == 0) {
+					logStatistics();
+				}
+			}
 		}
 
 		this.job.setEnd(Instant.now());
 		this.job.setStatus(JobStatus.FINISHED);
 		CrawlDatabaseManager.instance.upsertJob(job);
 
-		shutdownExecutor();
+		LOGGER.info("Job {} finished", job);
+		logStatistics();
+	}
 
+	private void logStatistics() {
 		LOGGER.info("Domain {}, number of pages to be requested: {}", job.getDomain(), noPagesToBeRequested);
 		LOGGER.info("Domain {}, number of GET requests made: {}", job.getDomain(), noRequests);
 		LOGGER.info("Domain {}, number of pages reached: {}", job.getDomain(), noPagesReached);
 		LOGGER.info("Domain {}, number of product-offer pairs found: {}", job.getDomain(), noProductOfferPairsFound);
 
 
-		LOGGER.info("Domain {}, total async duration: {}", job.getDomain(), totalAsyncDuration);
+		LOGGER.info("Domain {}, total duration: {}", job.getDomain(), totalDuration);
 		LOGGER.info("Domain {}, total download of page time: {}", job.getDomain(), totalDownloadDuration);
 		LOGGER.info("Domain {}, total processing of page time: {}", job.getDomain(), totalProcessingDuration);
-        LOGGER.info("Domain {}, total crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration);
+		LOGGER.info("Domain {}, total crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration);
 		LOGGER.info("Domain {}, total product persistence of product time: {}", job.getDomain(), totalProductPersistenceDuration);
 
 
-		LOGGER.info("Domain {}, average async duration: {}", job.getDomain(), totalAsyncDuration.dividedBy(noPagesToBeRequested));
-		LOGGER.info("Domain {}, average download of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesToBeRequested));
-		LOGGER.info("Domain {}, average processing of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesReached));
-        LOGGER.info("Domain {}, average crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration.dividedBy((noPagesReached)));
-		LOGGER.info("Domain {}, average product persistence of product time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noProductOfferPairsFound));
+		LOGGER.info("Domain {}, average download of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesToBeRequested.get()));
+		LOGGER.info("Domain {}, average processing of page time: {}", job.getDomain(), totalProcessingDuration.dividedBy(noPagesReached.get()));
+		LOGGER.info("Domain {}, average crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration.dividedBy((noPagesReached.get())));
+		LOGGER.info("Domain {}, average product persistence of product time: {}", job.getDomain(), totalProductPersistenceDuration.dividedBy(noProductOfferPairsFound.get()));
 	}
 
-	private Optional<Document> tryToGetPage(String url) {
+	private Optional<Document> downloadDocument(String url) {
+
+    	Stopwatch stopwatch = Stopwatch.createStarted();
 		final int MAX_TRIES = 2;
 		Document bookPage = null;
 		for (int i = 0; i < MAX_TRIES; ++i) {
+
+			noRequests.getAndIncrement();
 			try {
-				++noRequests;
 				LOGGER.info("Retrieving {} at {}", url, Instant.now());
 				bookPage = HtmlUtil.sanitizeHtml(
 						Jsoup.connect(url).userAgent(Job.getDefault("user_agent")).get());
+
+				stopwatch.stop();
+
+				totalDownloadDuration = totalDownloadDuration.plus(stopwatch.elapsed());
+				noPagesReached.getAndIncrement();
 				break;
 			} catch (SocketTimeoutException e) {
 				LOGGER.warn("Socket timed out on {}", url);
@@ -155,34 +192,10 @@ public class Scraper implements Runnable {
 		return Optional.ofNullable(bookPage);
 	}
 
-	private void scrapeFromPage(Page page) {
-		Stopwatch asyncStopwatch = Stopwatch.createStarted();
-
-		Optional<Document> possibleDocument = tryToGetPage(page.getUrl());
-		totalDownloadDuration = totalDownloadDuration.plus(asyncStopwatch.elapsed());
-
-		if (possibleDocument.isPresent()) {
-			scrapeFromReachablePage(page, possibleDocument.get());
-
-			++noPagesReached;
-		} else {
-			page.setType(PageType.UNREACHABLE);
-		}
-
-		updateCrawlFrontier(page);
-
-
-		asyncStopwatch.stop();
-		totalAsyncDuration = totalAsyncDuration.plus(asyncStopwatch.elapsed());
-	}
-
 	private Page scrapeFromReachablePage(Page page, Document htmlDocument) {
-		Stopwatch processingStopwatch = Stopwatch.createStarted();
+    	Stopwatch stopwatch = Stopwatch.createStarted();
+
     	SimpleImmutableEntry<Book, PricePoint> bookOfferPair = extractBookOffer(htmlDocument);
-
-    	processingStopwatch.stop();
-		totalProcessingDuration = totalProcessingDuration.plus(processingStopwatch.elapsed());
-
 
 		page.setTitle(htmlDocument.title());
 		page.setUrl(HtmlUtil.getCanonicalUrl(htmlDocument).orElse(page.getUrl()));
@@ -190,8 +203,6 @@ public class Scraper implements Runnable {
 		page.setLastJob(this.job.getId());
 
 		if (hasValidBookOfferPair(bookOfferPair)) {
-			++noProductOfferPairsFound;
-
             page.setType(PageType.PRODUCT);
             ObjectifyService.run(() -> {
                 persistBookOfferPair(bookOfferPair);
@@ -204,6 +215,9 @@ public class Scraper implements Runnable {
 			page.setType(PageType.UNAVAILABLE);
 			LOGGER.info("Page did not have an offer {}", page.getUrl());
 		}
+
+		stopwatch.stop();
+		totalProcessingDuration = totalProcessingDuration.plus(stopwatch.elapsed());
 
 		return page;
 	}
@@ -224,9 +238,10 @@ public class Scraper implements Runnable {
 		Preconditions.checkNotNull(page);
 
 		Stopwatch stopwatch = Stopwatch.createStarted();
-		CrawlDatabaseManager.instance.upsertOnePage(page);
-		stopwatch.stop();
 
+		CrawlDatabaseManager.instance.upsertOnePage(page);
+
+		stopwatch.stop();
 		totalCrawlPersistenceDuration = totalCrawlPersistenceDuration.plus(stopwatch.elapsed());
 	}
 
@@ -239,16 +254,19 @@ public class Scraper implements Runnable {
 	}
 
 	private void persistBookOfferPair(SimpleImmutableEntry<Book, PricePoint> bookOfferPair) {
-    	Stopwatch persistStopwatch = Stopwatch.createStarted();
+		Stopwatch stopwatch = Stopwatch.createStarted();
+
 		persistBookOfferPair(bookOfferPair.getKey(), bookOfferPair.getValue());
 
-		persistStopwatch.stop();
-		totalProductPersistenceDuration = totalProductPersistenceDuration.plus(persistStopwatch.elapsed());
+		stopwatch.stop();
+		totalProductPersistenceDuration = totalProductPersistenceDuration.plus(stopwatch.elapsed());
 	}
 
 	private void persistBookOfferPair(Book book, PricePoint offer) {
     	Preconditions.checkNotNull(book);
     	Preconditions.checkNotNull(offer);
+
+		noProductOfferPairsFound.getAndIncrement();
 
         List<Book> persistedBooks = findBookByIsbn(book);
         Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
@@ -283,17 +301,6 @@ public class Scraper implements Runnable {
 			return bookLoader.filter("isbn", candidate.getIsbn()).list();
 		else
 			return Collections.emptyList();
-	}
-
-	private void shutdownExecutor() throws InterruptedException {
-		if (!backgroundWorker.awaitTermination(1, TimeUnit.MINUTES)) {
-			backgroundWorker.shutdownNow();
-			if (!backgroundWorker.awaitTermination(1, TimeUnit.MINUTES)) {
-				LOGGER.info("Exiting scraper because of timeout: {}", backgroundWorker);
-				System.exit(0);
-			}
-			LOGGER.info("Exiting scraper normally: {}", backgroundWorker);
-		}
 	}
 
 	public Job getJob() {
