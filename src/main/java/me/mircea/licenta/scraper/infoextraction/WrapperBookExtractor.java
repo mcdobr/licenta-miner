@@ -2,7 +2,7 @@ package me.mircea.licenta.scraper.infoextraction;
 
 import me.mircea.licenta.core.crawl.db.model.Selector;
 import me.mircea.licenta.core.crawl.db.model.Wrapper;
-import me.mircea.licenta.scraper.utils.TextValueCoercer;
+import me.mircea.licenta.scraper.utils.BookAttributesCoercer;
 import me.mircea.licenta.products.db.model.Availability;
 import me.mircea.licenta.products.db.model.PricePoint;
 import org.jsoup.nodes.Document;
@@ -18,12 +18,12 @@ import java.util.*;
 public class WrapperBookExtractor implements BookExtractor {
 	private static final Logger LOGGER = LoggerFactory.getLogger(WrapperBookExtractor.class);
 	private final Wrapper wrapper;
-	private final TextValueCoercer coercer;
+	private final BookAttributesCoercer coercer;
 
 	public WrapperBookExtractor(Wrapper wrapper) {
 		super();
 		this.wrapper = wrapper;
-		this.coercer = new TextValueCoercer();
+		this.coercer = new BookAttributesCoercer();
 	}
 
 	@Override
@@ -68,7 +68,7 @@ public class WrapperBookExtractor implements BookExtractor {
 					.filter(key -> !Collections.disjoint(this.coercer.codeWordSet, Arrays.asList(key.split("[\\s|,.;:]"))))
 					.findFirst();
 			if (isbnAttribute.isPresent())
-				isbn = attributes.get(isbnAttribute.get()).replaceAll("^[ a-zA-Z]*", "");
+				isbn = coercer.coerceIsbn(attributes.get(isbnAttribute.get()));
 		}
 		return isbn;
 	}
@@ -81,11 +81,7 @@ public class WrapperBookExtractor implements BookExtractor {
 		if (possibleSelector.isPresent()) {
 			//TODO: finish this
 		} else {
-			Optional<Map.Entry<String, String>> formatAttribute = attributes.entrySet().stream()
-					.filter(entry -> this.coercer.formatsWordSet.containsKey(entry.getValue()))
-					.findFirst();
-			if (formatAttribute.isPresent())
-				format = this.coercer.formatsWordSet.get(formatAttribute.get().getValue());
+			format = coercer.coerceFormat(attributes);
 		}
 		return format;
 
@@ -100,7 +96,7 @@ public class WrapperBookExtractor implements BookExtractor {
 		} else {
 			Optional<Map.Entry<String, String>> publisherAttribute = attributes.entrySet()
 					.stream()
-					.filter(entry -> !Collections.disjoint(Arrays.asList(entry.getKey().split(TextValueCoercer.SEPARATORS)), this.coercer.publisherWordSet))
+					.filter(entry -> !Collections.disjoint(Arrays.asList(entry.getKey().split(BookAttributesCoercer.SEPARATORS)), this.coercer.publisherWordSet))
 					.findFirst();
 
 			if (publisherAttribute.isPresent())
@@ -142,7 +138,7 @@ public class WrapperBookExtractor implements BookExtractor {
 			Selector selector = possibleSelector.get();
 			Elements attributeElements = productPage.select(selector.getQuery());
 
-			attributes = TextValueCoercer.splitAttributes(attributeElements);
+			attributes = BookAttributesCoercer.splitAttributes(attributeElements);
 		}
 
 		return attributes;

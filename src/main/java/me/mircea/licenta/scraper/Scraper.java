@@ -32,7 +32,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
 import static java.util.AbstractMap.SimpleImmutableEntry;
 
 /**
- * @brief This class is used to extract books from product description pages.
+ * This class is used to extract books from product description pages.
  */
 public class Scraper implements Runnable {
 	private static final Logger LOGGER = LoggerFactory.getLogger(Scraper.class);

@@ -9,6 +9,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.MalformedURLException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -158,26 +159,31 @@ public class PricePoint {
 		if (currency == null) {
 			if (other.currency != null)
 				return false;
-		} else if (!currency.equals(other.currency))
+		} else if (!currency.equals(other.currency)) {
 			return false;
+		}
 
 		if (nominalValue == null) {
 			if (other.nominalValue != null)
 				return false;
-		} else if (!nominalValue.equals(other.nominalValue))
+		} else if (!nominalValue.equals(other.nominalValue)) {
 			return false;
+		}
 
 		if (retrievedTime == null) {
 			if (other.retrievedTime != null)
 				return false;
-		} else if (!retrievedTime.equals(other.retrievedTime))
+		} else if (!retrievedTime.equals(other.retrievedTime)) {
 			return false;
+		}
 
 		if (url == null) {
-			if (other.url != null)
+			if (other.url != null) {
 				return false;
-		} else if (!url.equals(other.url))
+			}
+		} else if (!url.equals(other.url)) {
 			return false;
+		}
 		return true;
 	}
 
@@ -230,7 +236,7 @@ public class PricePoint {
 		BigDecimal nominalValue = (BigDecimal) noFormat.parse(price);
 		if (!price.matches(".*[.,].*") && nominalValue.stripTrailingZeros().scale() <= 0
 				&& nominalValue.compareTo(BigDecimal.valueOf(100)) >= 1)
-			nominalValue = nominalValue.divide(BigDecimal.valueOf(100));
+			nominalValue = nominalValue.divide(BigDecimal.valueOf(100), RoundingMode.CEILING);
 
 		String url = HtmlUtil.getCanonicalUrl(htmlElement).orElse(htmlElement.baseUri());
 		PricePoint pricePoint =  new PricePoint(null, nominalValue, Currency.getInstance(locale), Instant.now(), url);

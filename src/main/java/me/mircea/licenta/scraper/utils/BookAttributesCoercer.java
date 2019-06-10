@@ -6,7 +6,7 @@ import org.jsoup.select.Elements;
 
 import java.util.*;
 
-public class TextValueCoercer {
+public class BookAttributesCoercer {
 	public static final String SEPARATORS = " ";
 	
 	
@@ -20,11 +20,11 @@ public class TextValueCoercer {
 	private final Map<String, Availability> availabilityWordSet = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 
 
-	public TextValueCoercer() {
+	public BookAttributesCoercer() {
 		this(Locale.forLanguageTag("ro-ro"));
 	}
 	
-	public TextValueCoercer(Locale locale) {
+	public BookAttributesCoercer(Locale locale) {
 
 		titleWordSet.add("titlu");
 		titleWordSet.add("title");
@@ -80,6 +80,7 @@ public class TextValueCoercer {
 		availabilityWordSet.put("LimitedAvailability", Availability.LIMITED_AVAILABILITY);
 
 		// out of stock
+		availabilityWordSet.put("epuizat", Availability.OUT_OF_STOCK);
 		availabilityWordSet.put("la comandă", Availability.OUT_OF_STOCK);
 		availabilityWordSet.put("la comanda", Availability.OUT_OF_STOCK);
 		availabilityWordSet.put("comandă", Availability.OUT_OF_STOCK);
@@ -115,5 +116,30 @@ public class TextValueCoercer {
 		} else {
 			return null;
 		}
+	}
+
+
+	public String coerceFormat(Map<String, String> attributes) {
+		String format = null;
+		Optional<Map.Entry<String, String>> possibleFormatAttribute = attributes.entrySet().stream()
+				.filter(entry -> !Collections.disjoint(formatsWordSet.keySet(), Arrays.asList(entry.getValue().split(" "))))
+				.findFirst();
+		if (possibleFormatAttribute.isPresent()) {
+			Collection<String> words = Arrays.asList(possibleFormatAttribute.get().getValue().toLowerCase().split(" "));
+			Optional<String> possibleFormatKeyword = words.stream().filter(formatsWordSet::containsKey).findFirst();
+			if (possibleFormatKeyword.isPresent()) {
+				format = formatsWordSet.get(possibleFormatKeyword.get());
+			}
+
+		}
+		return format;
+	}
+
+	/**
+	 * Removes unecessary characters from an isbn
+	 */
+	public String coerceIsbn(String isbn) {
+		return isbn.replaceAll("^[ \\p{L}]*", "")
+				.replaceAll("[ \\p{L}[^xX]]$", "");
 	}
 }
