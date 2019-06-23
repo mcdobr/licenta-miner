@@ -27,10 +27,11 @@ public class Book implements Product {
 		return new Book(persisted, addition, locale);
 	}
 
-
 	@Id
 	private Long id;
+	@Index
 	private String title;
+	@Index
 	private String authors;
 	@Index
 	private String isbn;

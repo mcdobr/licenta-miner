@@ -7,6 +7,7 @@ import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.cmd.LoadType;
 import javafx.scene.paint.Stop;
 import me.mircea.licenta.core.crawl.db.CrawlDatabaseManager;
+import me.mircea.licenta.core.crawl.db.RobotDefaults;
 import me.mircea.licenta.core.crawl.db.model.*;
 import me.mircea.licenta.core.parser.utils.HtmlUtil;
 import me.mircea.licenta.products.db.model.Book;
@@ -54,20 +55,22 @@ public class Scraper implements Runnable {
 	private Duration totalCrawlPersistenceDuration = Duration.ZERO;
 	private Duration totalProductPersistenceDuration = Duration.ZERO;
 
-    public Scraper(String seed, ObjectId continueJob) throws IOException {
-    	Preconditions.checkNotNull(seed);
-    	Preconditions.checkNotNull(continueJob);
 
-    	this.job = new Job(continueJob, seed, JobType.SCRAPE);
+	public Scraper(String domain) throws IOException {
+		Preconditions.checkNotNull(domain);
+
+		this.job = new Job(domain, JobType.SCRAPE);
 		this.extractor = chooseStrategy();
 
 		this.downloader = Executors.newScheduledThreadPool(1);
 		this.documentQueue = new LinkedBlockingQueue<>();
 	}
 
-	public Scraper(String seed) throws IOException {
-        Preconditions.checkNotNull(seed);
-		this.job = new Job(seed, JobType.SCRAPE);
+	public Scraper(String domain, ObjectId jobIdToBeContinued) throws IOException {
+		Preconditions.checkNotNull(domain);
+		Preconditions.checkNotNull(jobIdToBeContinued);
+
+		this.job = new Job(domain, JobType.SCRAPE, jobIdToBeContinued);
 		this.extractor = chooseStrategy();
 
 		this.downloader = Executors.newScheduledThreadPool(1);
@@ -176,7 +179,7 @@ public class Scraper implements Runnable {
 			try {
 				LOGGER.info("Retrieving {} at {}", url, Instant.now());
 				bookPage = HtmlUtil.sanitizeHtml(
-						Jsoup.connect(url).userAgent(Job.getDefault("user_agent")).get());
+						Jsoup.connect(url).userAgent(RobotDefaults.getDefault("user_agent")).get());
 
 				stopwatch.stop();
 
