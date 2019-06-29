@@ -8,7 +8,7 @@
 	<version>0.1.0</version>
 
     <name>scraper</name>
-	<packaging>pom</packaging>
+	<packaging>war</packaging>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

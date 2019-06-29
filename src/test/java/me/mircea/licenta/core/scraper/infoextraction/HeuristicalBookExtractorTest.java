@@ -9,6 +9,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -185,6 +186,7 @@ public class HeuristicalBookExtractorTest {
 		assertEquals("#text_container>p", wrapper.getAttributeSelector());
 	} */
 
+	@Ignore
 	@Test
 	public void shouldExtractIsbn() throws IOException {
 		Document doc = Jsoup.connect("https://carturesti.ro/carte/noul-cod-civil-studii-si-comentarii-vol-al-iii-lea-p-i-art-1164-1649-239686").get();

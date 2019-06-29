@@ -10,17 +10,17 @@ import java.util.Map;
 import java.util.Set;
 
 public interface ProductExtractor {
-	Product extract(Document productPage);
+    Product extract(Document productPage);
 
-	PricePoint extractPricePoint(Element productPage, Locale locale);
+    PricePoint extractPricePoint(Element productPage, Locale locale);
 
-	Map<String, String> extractAttributes(Element productPage);
+    Map<String, String> extractAttributes(Element productPage);
 
-	String extractAvailability(Document productPage);
+    String extractAvailability(Document productPage);
 
-	String extractDescription(Document productPage);
+    String extractDescription(Document productPage);
 
-	String extractImageUrl(Element htmlElement);
+    String extractImageUrl(Element htmlElement);
 
-	Set<String> extractKeywords(String ...values);
+    Set<String> extractKeywords(String... values);
 }
