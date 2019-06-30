@@ -108,7 +108,7 @@ public class Scraper implements Runnable {
                 }
             }
         }
-        finishJob();
+        finishScrapeJob();
     }
 
     private void downloadOnePage(Iterator<Page> pageIterator) {
@@ -256,12 +256,12 @@ public class Scraper implements Runnable {
         return CrawlDatabaseManager.instance.getPossibleProductPages(job.getDomain()).iterator();
     }
 
-    private void finishJob() {
+    private void finishScrapeJob() {
         this.job.setEnd(Instant.now());
         this.job.setStatus(JobStatus.FINISHED);
         CrawlDatabaseManager.instance.upsertJob(job);
 
-        LOGGER.info("Job {} finished", job);
+        LOGGER.info("Finished scraping job {}", job);
         statistics.logStatistics();
     }
 
