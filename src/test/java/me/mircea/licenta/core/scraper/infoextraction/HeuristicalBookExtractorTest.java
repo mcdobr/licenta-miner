@@ -68,16 +68,6 @@ public class HeuristicalBookExtractorTest {
 		assertEquals("Bird Box. Orbește", extractionStrategy.extractTitle(cartepediaPage));
 	}
 
-	/*
-	@Test
-	public void shouldExtractAuthors() {
-		assertEquals("Claude Karnoouh", extractionStrategy.extractAuthors(alexandriaMainContent));
-		assertEquals("Jon Kalman Stefansson", extractionStrategy.extractAuthors(carturestiMainContent));
-		assertEquals("Simona Tivadar", extractionStrategy.extractAuthors(librisMainContent));
-		assertEquals("Josh Malerman", extractionStrategy.extractAuthors(cartepediaPage));
-	}
-	*/
-
 	@Test
 	public void shouldExtractImages() {
 		assertEquals("http://www.librariilealexandria.ro/image/cache/catalog/produse/carti/Filosofie%20politica/Pentru%20o%20genealogie%202017-480x480.jpg", extractionStrategy.extractImageUrl(alexandriaContent));
@@ -101,22 +91,6 @@ public class HeuristicalBookExtractorTest {
 		assertNotEquals(book.getIsbn().trim(), "");
 	}
 
-	/*
-	@Test
-	public void shouldExtractFormats() {
-		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(alexandriaMainContent)));
-		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(carturestiMainContent)));
-		assertTrue("paperback".equalsIgnoreCase(extractionStrategy.extractFormat(librisMainContent)));
-	}
-	
-	@Test
-	public void shouldExtractPublishers() {
-
-		assertEquals("Alexandria Publishing House", extractionStrategy.extractPublisher(alexandriaMainContent));	
-		assertEquals("Polirom", extractionStrategy.extractPublisher(carturestiMainContent));
-		assertEquals("HUMANITAS", extractionStrategy.extractPublisher(librisMainContent));
-	} */
-
 	@Test
 	public void shouldExtractPrices() throws IOException {
 		PricePoint price;
@@ -130,61 +104,6 @@ public class HeuristicalBookExtractorTest {
 		price = extractionStrategy.extractPricePoint(librisMainContent, Locale.forLanguageTag("ro-ro"));
 		assertEquals(32.55, price.getNominalValue().doubleValue(), 1e-5);
 	}
-	
-	/*
-	@Test
-	public void shouldCreateAppropriateWrapperOnAlexandria() throws IOException {
-		String url = "http://www.librariilealexandria.ro/elita-din-umbra";
-		Element mainContent = HtmlUtil.extractMainContent(Jsoup.connect(url).get());
-		WrapperGenerator strategy = new HeuristicalBookExtractor();
-		WebWrapper wrapper = strategy.generateWrapper(mainContent);
-
-		logger.info("Alexandria: {}", wrapper.toString());
-		
-		assertEquals(".product-name", wrapper.getTitleSelector());
-		assertEquals(".product-author", wrapper.getAuthorsSelector());
-		assertEquals(".big-text>b", wrapper.getPriceSelector());
-		//logger.info(wrapper.getAttributeSelector());
-	}
-	
-	@Test
-	public void shouldCreateAppropriateWrapperOnCarturesti() throws IOException {
-		String url = "https://carturesti.ro/carte/pedaland-prin-viata-181658144?p=2";
-		Element mainContent = HtmlUtil.extractMainContent(Jsoup.connect(url).get());
-
-		final URL resource = classLoader.getResource("heuristicGridMock.html");
-		File inputFile = new File(resource.getFile());
-		
-		Elements additionals = new Elements();
-		additionals.add(Jsoup.parse(inputFile, "UTF-8"));
-
-		WrapperGenerator strategy = new HeuristicalBookExtractor();
-		Wrapper wrapper = strategy.generateWrapper(mainContent, additionals);
-
-		logger.info("Carturesti: {}", wrapper.toString());
-
-		assertEquals(".titluProdus", wrapper.getTitleSelector());
-		assertEquals(".autorProdus", wrapper.getAuthorsSelector());
-		assertEquals(".pret", wrapper.getPriceSelector());
-		assertEquals(".productAttr", wrapper.getAttributeSelector());
-		assertEquals(".product-grid-container", wrapper.getBookCardSelector());
-	}
-
-	@Test
-	public void shouldCreateAppropriateWrapperOnLibris() throws IOException {
-		String url = "https://www.libris.ro/naufragii-akira-yoshimura-HUM978-606-779-038-2--p1033264.html";
-		Element mainContent = HtmlUtil.extractMainContent(Jsoup.connect(url).get());
-		
-		// TODO: add mock grid page to extract book cards
-		
-		WrapperGenerator strategy = new HeuristicalBookExtractor();
-		Wrapper wrapper = strategy.generateWrapper(mainContent);
-
-		logger.info("Libris: {}", wrapper.toString());
-		assertEquals("#product_title", wrapper.getTitleSelector());
-		assertEquals("#price", wrapper.getPriceSelector());
-		assertEquals("#text_container>p", wrapper.getAttributeSelector());
-	} */
 
 	@Ignore
 	@Test
@@ -194,9 +113,5 @@ public class HeuristicalBookExtractorTest {
 		Book book = (Book)extractionStrategy.extract(HtmlUtil.sanitizeHtml(doc));
 
 		assertEquals("9786066733632", book.getIsbn());
-
-
-		//assertEquals("9786068564203", (Book)(extractionStrategy.extract(HtmlUtil.sanitizeHtml(Jsoup.connect("http://www.librariilealexandria.ro/alexander-marguier-lux-lexicon").get())
-		//).getIsbn());
 	}
 }
