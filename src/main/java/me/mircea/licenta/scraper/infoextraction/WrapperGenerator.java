@@ -6,12 +6,11 @@ import org.jsoup.select.Elements;
 
 
 public interface WrapperGenerator {
-	Wrapper generateWrapper(Element productPage, Elements additionals);
+    Wrapper generateWrapper(Element productPage, Elements additionals);
 
-	default Wrapper generateWrapper(Element bookPage) {
-		throw new UnsupportedOperationException("Not implemented yet");
-		//return generateWrapper(bookPage, new Elements());
-	}
-	
-	String generateCssSelectorFor(Elements elements);
+    default Wrapper generateWrapper(Element bookPage) {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    String generateCssSelectorFor(Elements elements);
 }

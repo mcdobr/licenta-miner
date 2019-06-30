@@ -26,57 +26,57 @@ import java.util.concurrent.Executors;
 
 @Path("/jobs")
 public class ScrapeJobResource {
-	private static final ExecutorService ASYNC_TASK_EXECUTOR = Executors.newCachedThreadPool();
-	private static final Logger LOGGER = LoggerFactory.getLogger(ScrapeJobResource.class);
+    private static final ExecutorService ASYNC_TASK_EXECUTOR = Executors.newCachedThreadPool();
+    private static final Logger LOGGER = LoggerFactory.getLogger(ScrapeJobResource.class);
 
-	@GET
-	@Produces(MediaType.APPLICATION_JSON)
-	public List<Job> listActiveScraperJobs() {
-		Iterable<Job> iterable = CrawlDatabaseManager.instance.getActiveJobsByType(JobType.SCRAPE);
-		return Lists.newArrayList(iterable);
-	}
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Job> listActiveScraperJobs() {
+        Iterable<Job> iterable = CrawlDatabaseManager.instance.getActiveJobsByType(JobType.SCRAPE);
+        return Lists.newArrayList(iterable);
+    }
 
-	@GET
-	@Path("{jobId}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Job getScraperJobStatus(@PathParam("jobId") ObjectId jobId) {
-		return CrawlDatabaseManager.instance.getJobById(jobId);
-	}
+    @GET
+    @Path("{jobId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Job getScraperJobStatus(@PathParam("jobId") ObjectId jobId) {
+        return CrawlDatabaseManager.instance.getJobById(jobId);
+    }
 
-	@POST
-	@Consumes(MediaType.APPLICATION_JSON)
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response createScraperJob(@Context HttpServletRequest request, ObjectNode scrapeRequest) {
-		Scraper scraper;
-		String domain = null;
-		try {
-			if (!scrapeRequest.has("homepage") || !scrapeRequest.get("homepage").isTextual()) {
-				throw new IllegalArgumentException("No homepage was received");
-			}
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createScraperJob(@Context HttpServletRequest request, ObjectNode scrapeRequest) {
+        Scraper scraper;
+        String domain = null;
+        try {
+            if (!scrapeRequest.has("homepage") || !scrapeRequest.get("homepage").isTextual()) {
+                throw new IllegalArgumentException("No homepage was received");
+            }
 
-			JsonNode homepageNode = scrapeRequest.get("homepage");
-			domain = HtmlUtil.getDomainOfUrl(homepageNode.asText());
+            JsonNode homepageNode = scrapeRequest.get("homepage");
+            domain = HtmlUtil.getDomainOfUrl(homepageNode.asText());
 
-			if (scrapeRequest.has("continue")) {
-				scraper = new Scraper(homepageNode.asText(),
-						new ObjectId(scrapeRequest.get("continue").asText()));
-			} else {
-				scraper = new Scraper(homepageNode.asText());
-			}
+            if (scrapeRequest.has("continue")) {
+                scraper = new Scraper(homepageNode.asText(),
+                        new ObjectId(scrapeRequest.get("continue").asText()));
+            } else {
+                scraper = new Scraper(homepageNode.asText());
+            }
 
-			ASYNC_TASK_EXECUTOR.execute(scraper);
-			return Response.status(202).entity(scraper.getJob()).build();
-		} catch (MalformedURLException | IllegalArgumentException e) {
-			LOGGER.warn("Could not find a valid homepage url {}", request);
-			return Response.status(400).build();
-		} catch (JobActiveOnHost e) {
-			LOGGER.warn("A job was active on the host before trying to start a new one");
-			Job activeJob = CrawlDatabaseManager.instance.getActiveJobOnDomain(domain);
-			String redirectUri = request.getRequestURI() + "/" + activeJob.getId().toString();
-			return Response.status(409).header("Location", redirectUri).entity(activeJob).build();
-		} catch (IOException e) {
-			LOGGER.warn("Could not read a configuration file {}", e);
-			return Response.status(500).build();
-		}
-	}
+            ASYNC_TASK_EXECUTOR.execute(scraper);
+            return Response.status(202).entity(scraper.getJob()).build();
+        } catch (MalformedURLException | IllegalArgumentException e) {
+            LOGGER.warn("Could not find a valid homepage url {}", request);
+            return Response.status(400).build();
+        } catch (JobActiveOnHost e) {
+            LOGGER.warn("A job was active on the host before trying to start a new one");
+            Job activeJob = CrawlDatabaseManager.instance.getActiveJobOnDomain(domain);
+            String redirectUri = request.getRequestURI() + "/" + activeJob.getId().toString();
+            return Response.status(409).header("Location", redirectUri).entity(activeJob).build();
+        } catch (IOException e) {
+            LOGGER.warn("Could not read a configuration file {}", e);
+            return Response.status(500).build();
+        }
+    }
 }
