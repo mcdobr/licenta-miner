@@ -15,6 +15,7 @@ public enum Availability {
     SOLDOUT("soldout");
 
     String type;
+
     Availability(String type) {
         this.type = type.trim().toLowerCase();
     }
