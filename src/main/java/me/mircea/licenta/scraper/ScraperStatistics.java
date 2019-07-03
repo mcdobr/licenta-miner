@@ -28,7 +28,6 @@ class ScraperStatistics {
     private Duration totalCrawlPersistenceDuration;
     private Duration totalProductPersistenceDuration;
 
-
     private Stopwatch totalDurationTimer;
     private Stopwatch downloadDurationTimer;
     private Stopwatch processingDurationTimer;
@@ -129,9 +128,17 @@ class ScraperStatistics {
         LOGGER.info("Domain {}, total product persistence of product time: {}", job.getDomain(), totalProductPersistenceDuration);
 
 
-        LOGGER.info("Domain {}, average download of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesToBeRequested.get()));
-        LOGGER.info("Domain {}, average processing of page time: {}", job.getDomain(), totalProcessingDuration.dividedBy(noPagesReached.get()));
-        LOGGER.info("Domain {}, average crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration.dividedBy((noPagesReached.get())));
-        LOGGER.info("Domain {}, average product persistence of product time: {}", job.getDomain(), totalProductPersistenceDuration.dividedBy(noProductOfferPairsFound.get()));
+        if (noPagesToBeRequested.get() != 0) {
+            LOGGER.info("Domain {}, average download of page time: {}", job.getDomain(), totalDownloadDuration.dividedBy(noPagesToBeRequested.get()));
+        }
+        if (noPagesToBeRequested.get() != 0) {
+            LOGGER.info("Domain {}, average processing of page time: {}", job.getDomain(), totalProcessingDuration.dividedBy(noPagesReached.get()));
+        }
+        if (noPagesReached.get() != 0) {
+            LOGGER.info("Domain {}, average crawl persistence of product time: {}", job.getDomain(), totalCrawlPersistenceDuration.dividedBy((noPagesReached.get())));
+        }
+        if (noProductOfferPairsFound.get() != 0) {
+            LOGGER.info("Domain {}, average product persistence of product time: {}", job.getDomain(), totalProductPersistenceDuration.dividedBy(noProductOfferPairsFound.get()));
+        }
     }
 }

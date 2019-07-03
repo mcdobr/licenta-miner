@@ -75,18 +75,21 @@ public class Scraper implements Runnable {
 
     @Override
     public void run() {
+        statistics.startTotalDurationTimer();
+        Iterator<Page> pageIterator = startScrapeJob();
         try {
-            statistics.startTotalDurationTimer();
-            scrape();
-            statistics.stopTotalDurationTimer();
+            scrape(pageIterator);
         } catch (InterruptedException e) {
-            LOGGER.warn("Thread interrupted {}", e);
+            LOGGER.warn("Thread with job {} on domain {} interrupted: {}", this.job, this.job.getDomain(), e);
             Thread.currentThread().interrupt();
+        } catch (RuntimeException e) {
+            LOGGER.error("Something has gone seriously wrong on job {} on domain {}: {}", this.job, this.job.getDomain(), e);
         }
+        finishScrapeJob();
+        statistics.stopTotalDurationTimer();
     }
 
-    private void scrape() throws InterruptedException {
-        Iterator<Page> pageIterator = startScrapeJob();
+    private void scrape(Iterator<Page> pageIterator) throws InterruptedException {
         downloader.scheduleAtFixedRate(() -> downloadOnePage(pageIterator), 0, job.getRobotRules().getCrawlDelay(), TimeUnit.MILLISECONDS);
 
         while (!downloader.isShutdown() || !documentQueue.isEmpty()) {
@@ -108,7 +111,6 @@ public class Scraper implements Runnable {
                 }
             }
         }
-        finishScrapeJob();
     }
 
     private void downloadOnePage(Iterator<Page> pageIterator) {

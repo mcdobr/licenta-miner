@@ -1,5 +1,6 @@
 FROM tomcat:9-jre8
 MAINTAINER Mircea Dobreanu (github.com/mcdobr)
+RUN rm -rf /usr/local/tomcat/webapps/*
 CMD ["catalina.sh", "run"]
 COPY ./target/scraper.war $CATALINA_HOME/webapps
 COPY ./bookworm-751eb5181a7d.json /opt
