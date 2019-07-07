@@ -77,7 +77,7 @@ public class Book implements Product {
 		this.id = persisted.id;
 		this.title = (String) normalizer.getNotNullIfPossible(persisted.title, addition.title);
 		this.authors = normalizer.getLongestOfNullableStrings(persisted.authors, addition.authors);
-		this.isbn = (String) normalizer.getNotNullIfPossible(persisted.isbn, addition.isbn);
+		this.isbn = normalizer.getCorrectlyFormattedIsbnIfPossible(persisted.isbn, addition.isbn);
 		this.description = normalizer.getLongestOfNullableStrings(persisted.description, addition.description);
 		
 		this.pricepoints = persisted.pricepoints;	
