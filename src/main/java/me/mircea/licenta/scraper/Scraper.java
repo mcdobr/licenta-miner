@@ -222,7 +222,6 @@ public class Scraper implements Runnable {
         Key<PricePoint> offerKey = ObjectifyService.ofy().save().entity(offer).now();
         book.setBestCurrentOffer(offer);
 
-
         book.getPricepoints().add(offerKey);
         if (persistedBooks.isEmpty()) {
             ofy().save().entity(book);
@@ -247,10 +246,16 @@ public class Scraper implements Runnable {
      */
     private List<Book> findBookByIsbn(Book candidate) {
         LoadType<Book> bookLoader = ObjectifyService.ofy().load().type(Book.class);
-        if (candidate.getIsbn() != null)
-            return bookLoader.filter("isbn", candidate.getIsbn()).list();
-        else
+        String isbn = candidate.getIsbn();
+
+        if (isbn != null) {
+            List<Book> similarBooks = bookLoader.filter("isbn", isbn).list();
+            similarBooks.addAll(bookLoader.filter("isbn", isbn.substring(0, isbn.length() - 1)).list());
+
+            return similarBooks;
+        } else {
             return Collections.emptyList();
+        }
     }
 
     private Iterator<Page> startScrapeJob() {

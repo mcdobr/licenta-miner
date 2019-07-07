@@ -137,7 +137,10 @@ public class BookAttributesCoercer {
      * Removes unecessary characters from an isbn
      */
     public String coerceIsbn(String isbn) {
-        return isbn.replaceAll("^[ \\p{L}]*", "")
-                .replaceAll("[ \\p{L}[^xX]]$", "");
+        final String startLettersRegex = "^[ \\p{L}]*";
+        final String endLettersRegex = "[ \\p{L}[^xX0-9]]$";
+
+        return isbn.replaceAll(startLettersRegex, "")
+                .replaceAll(endLettersRegex, "");
     }
 }
