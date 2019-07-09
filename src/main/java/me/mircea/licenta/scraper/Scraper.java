@@ -250,7 +250,9 @@ public class Scraper implements Runnable {
 
         if (isbn != null) {
             List<Book> similarBooks = bookLoader.filter("isbn", isbn).list();
-            similarBooks.addAll(bookLoader.filter("isbn", isbn.substring(0, isbn.length() - 1)).list());
+            if (isbn.length() >= 1) {
+                similarBooks.addAll(bookLoader.filter("isbn", isbn.substring(0, isbn.length() - 1)).list());
+            }
 
             return similarBooks;
         } else {
